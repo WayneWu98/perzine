@@ -1,0 +1,5 @@
+.DS_Store
+server/target/
+node_modules
+dist/
+.env
