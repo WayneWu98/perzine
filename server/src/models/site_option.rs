@@ -6,12 +6,15 @@ use tokio_pg_mapper_derive::PostgresMapper;
 #[derive(PostgresMapper, Debug, Clone)]
 #[pg_mapper(table = "options")]
 pub struct SiteOption {
-    id: i32,
+    id: u32,
     pub name: String,
     pub value: String,
 }
 
 impl SiteOption {
+    pub fn id(&self) -> u32 {
+        self.id
+    }
     pub async fn from_name(pool: &Pool, name: &str) -> Result<Self, Box<dyn Error>> {
         let client = pool.get().await?;
         let stmt = client
@@ -28,7 +31,9 @@ impl SiteOption {
             .query(&stmt, &[])
             .await?
             .into_iter()
-            .map(|row| Self::from_row(row).unwrap())
+            .map(|row| Self::from_row(row))
+            .filter(|res| res.is_ok())
+            .map(|res| res.unwrap())
             .collect::<Vec<Self>>();
         for row in rows {
             options.insert(row.name.clone(), row);
