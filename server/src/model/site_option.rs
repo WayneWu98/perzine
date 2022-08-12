@@ -3,6 +3,18 @@ use std::{collections::HashMap, error::Error};
 use tokio_pg_mapper::FromTokioPostgresRow;
 use tokio_pg_mapper_derive::PostgresMapper;
 
+pub static PrivateOptions: [&'static str; 1] = ["password"];
+
+pub fn filter_pubs(options: &Vec<SiteOption>) -> Vec<&SiteOption> {
+    let mut valids: Vec<&SiteOption> = vec![];
+    for option in options {
+        if PrivateOptions.contains(&&option.name[..]) {
+            valids.push(option);
+        }
+    }
+    valids
+}
+
 #[derive(PostgresMapper, Debug, Clone)]
 #[pg_mapper(table = "options")]
 pub struct SiteOption {

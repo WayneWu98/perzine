@@ -1,3 +1,5 @@
+pub mod option;
+
 use axum::response::IntoResponse;
 use serde::Serialize;
 
