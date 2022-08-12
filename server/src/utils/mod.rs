@@ -1,3 +1,5 @@
+pub mod error;
+
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]

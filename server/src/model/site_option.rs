@@ -6,13 +6,13 @@ use tokio_pg_mapper_derive::PostgresMapper;
 #[derive(PostgresMapper, Debug, Clone)]
 #[pg_mapper(table = "options")]
 pub struct SiteOption {
-    id: u32,
+    id: i32,
     pub name: String,
     pub value: String,
 }
 
 impl SiteOption {
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> i32 {
         self.id
     }
     pub async fn from_name(pool: &Pool, name: &str) -> Result<Self, Box<dyn Error>> {
