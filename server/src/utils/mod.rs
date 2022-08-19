@@ -26,3 +26,7 @@ impl AppConfig {
         cfg.try_deserialize()
     }
 }
+
+pub struct AppState {
+    pub pool: deadpool_postgres::Pool,
+}
