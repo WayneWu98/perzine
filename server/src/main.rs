@@ -1,12 +1,12 @@
 use dotenv::dotenv;
-use std::error::Error;
 
-use perzine_server::{route, utils::AppState};
+use perzine_server::core::{AppConfig, AppState};
+use perzine_server::route;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
-    let cfg = perzine_server::utils::AppConfig::from_env().expect("App initialize fail!");
+    let cfg = AppConfig::from_env().expect("App initialize fail!");
     let pool = cfg.pg.create_pool(
         Some(deadpool_postgres::Runtime::Tokio1),
         tokio_postgres::NoTls,

@@ -2,7 +2,7 @@ use std::{error::Error, fmt::Display};
 
 use axum::Json;
 
-use crate::route::ResponseBody;
+use crate::utils::response::{ResponseBody, StatusCode};
 
 #[derive(Debug)]
 pub struct AppError {
@@ -46,7 +46,7 @@ impl From<tokio_postgres::Error> for AppError {
 impl axum::response::IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         Json(ResponseBody::error(
-            crate::route::StatusCode::UNKNOWN_ERROR,
+            StatusCode::UNKNOWN_ERROR,
             self.to_string(),
         ))
         .into_response()
