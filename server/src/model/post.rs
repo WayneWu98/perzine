@@ -96,9 +96,10 @@ impl<'a> FromSql<'a> for Status {
         let s = String::from_utf8(raw.to_vec())?;
         match STR_2_STATUS_MAP.get(&s[..]) {
             Some(status) => Ok(*status),
-            None => Err(Box::new(crate::utils::error::PureError::new(
-                "translate SQLValue to RustValue fail.".to_string(),
-            ))),
+            None => Err(Box::new(crate::utils::error::AppError {
+                msg: Some("translate SQLValue to RustValue fail.".to_string()),
+                source: None,
+            })),
         }
     }
 }

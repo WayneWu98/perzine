@@ -1,15 +1,13 @@
 pub mod option;
 
-use axum::response::IntoResponse;
 use axum::Extension;
-use axum::{
-    routing::{delete, get, options, post},
-    Router,
-};
+use axum::{routing::get, Json, Router};
 use serde::Serialize;
+use serde_repr::Serialize_repr;
 
-#[derive(Serialize)]
-enum StatusCode {
+#[derive(Clone, Serialize_repr, PartialEq)]
+#[repr(u16)]
+pub enum StatusCode {
     OK = 2000,
     NOT_FOUND = 4041,
 
@@ -18,37 +16,28 @@ enum StatusCode {
 }
 
 #[derive(Serialize)]
-pub struct AppResponse<T: IntoResponse> {
+pub struct ResponseBody<T> {
     data: T,
     code: StatusCode,
     msg: String,
 }
 
-impl<T: IntoResponse> AppResponse<T> {
-    fn new(data: T, code: StatusCode, msg: String) -> Self {
+impl<T> ResponseBody<T> {
+    pub fn new(data: T, code: StatusCode, msg: String) -> Self {
         Self { data, code, msg }
     }
-    fn ok(data: T) -> Self {
+    pub fn ok(data: T) -> Self {
         Self::new(data, StatusCode::OK, "success".to_string())
     }
 }
 
-impl AppResponse<()> {
-    fn error(code: StatusCode, msg: String) -> Self {
+impl ResponseBody<()> {
+    pub fn error(code: StatusCode, msg: String) -> Self {
         Self::new((), code, msg)
     }
 }
 
-type HandlerResult<T: IntoResponse> = Result<T, Box<dyn std::error::Error>>;
-
-impl<T: IntoResponse> IntoResponse for HandlerResult<T> {
-    fn into_response(self) -> axum::response::Response {
-        match self {
-            Ok(data) => AppResponse::ok(data),
-            Err(err) => AppResponse::error(StatusCode::UNKNOWN_ERROR, err.to_string()),
-        }
-    }
-}
+type HandlerResult<T> = Result<Json<ResponseBody<T>>, crate::utils::error::AppError>;
 
 use crate::utils::AppState;
 

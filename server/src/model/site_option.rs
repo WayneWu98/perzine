@@ -5,11 +5,6 @@ use tokio_pg_mapper_derive::PostgresMapper;
 
 pub static PrivateOptions: [&'static str; 1] = ["password"];
 
-// pub trait Filter {
-//     type Type = SiteOption;
-//     pub fn filter_publics()
-// }
-
 #[derive(PostgresMapper, Debug, Clone)]
 #[pg_mapper(table = "options")]
 pub struct SiteOption {
@@ -70,6 +65,6 @@ pub fn map(options: Vec<SiteOption>) -> HashMap<String, String> {
 pub fn filter_publics(options: Vec<SiteOption>) -> Vec<SiteOption> {
     options
         .into_iter()
-        .filter(|opt| opt.is_private())
+        .filter(|opt| !opt.is_private())
         .collect::<Vec<SiteOption>>()
 }
