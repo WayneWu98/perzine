@@ -3,7 +3,7 @@ use std::{collections::HashMap, error::Error};
 use tokio_pg_mapper::FromTokioPostgresRow;
 use tokio_pg_mapper_derive::PostgresMapper;
 
-pub static PrivateOptions: [&'static str; 1] = ["password"];
+pub static PRIVATE_OPTIONS: [&'static str; 1] = ["password"];
 
 #[derive(PostgresMapper, Debug, Clone)]
 #[pg_mapper(table = "options")]
@@ -39,7 +39,7 @@ impl SiteOption {
         Ok(rows)
     }
     pub fn is_private(&self) -> bool {
-        PrivateOptions.contains(&&self.name[..])
+        PRIVATE_OPTIONS.contains(&&self.name[..])
     }
     pub async fn save(&self, pool: &Pool) -> Result<bool, Box<dyn Error>> {
         let client = pool.get().await?;

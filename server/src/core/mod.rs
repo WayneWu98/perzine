@@ -1,3 +1,9 @@
+pub mod auth;
+pub mod error;
+pub mod response;
+
+use std::sync::Arc;
+
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
@@ -10,6 +16,7 @@ pub struct ServerConfig {
 pub struct AppConfig {
     pub server: ServerConfig,
     pub pg: deadpool_postgres::Config,
+    pub jwt_secret: String,
 }
 
 impl AppConfig {
@@ -28,3 +35,10 @@ impl AppConfig {
 pub struct AppState {
     pub pool: deadpool_postgres::Pool,
 }
+
+use once_cell::sync::Lazy;
+
+pub static APP_CONFIG: Lazy<Arc<AppConfig>> = Lazy::new(|| {
+    dotenv::dotenv().ok();
+    Arc::new(AppConfig::from_env().expect("App initialize fail!"))
+});
