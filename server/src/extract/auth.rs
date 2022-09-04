@@ -34,10 +34,7 @@ pub struct Claims {
 
 use crate::core::response::ResponseStatus;
 #[async_trait]
-impl<T> FromRequest<T> for Claims
-where
-    T: Send + Sync,
-{
+impl<T: Send + Sync> FromRequest<T> for Claims {
     type Rejection = AppError;
 
     async fn from_request(req: &mut RequestParts<T>) -> Result<Self, Self::Rejection> {

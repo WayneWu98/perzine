@@ -1,11 +1,8 @@
-use dotenv::dotenv;
-
 use perzine_server::core::{AppState, APP_CONFIG};
 use perzine_server::route;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    dotenv().ok();
     let cfg = APP_CONFIG.clone();
     let pool = cfg.pg.create_pool(
         Some(deadpool_postgres::Runtime::Tokio1),

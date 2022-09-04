@@ -1,5 +1,4 @@
 pub mod error;
-pub mod extract;
 pub mod response;
 
 use std::sync::Arc;

@@ -1,16 +1,17 @@
-use std::ops::Add;
-
+use axum::routing::post;
 use axum::Json;
+use axum::{routing::get, Router};
 use jsonwebtoken::{encode, Header};
 use serde::{Deserialize, Serialize};
 
 use crate::core::{
     error::AppError,
-    extract::{
-        auth::{Claims, KEY},
-        JsonPayload,
-    },
     response::{HandlerResult, ResponseBody, ResponseStatus},
+};
+
+use crate::extract::{
+    auth::{Claims, KEY},
+    JsonPayload,
 };
 
 #[derive(Debug, Serialize)]
@@ -53,4 +54,10 @@ pub async fn login(JsonPayload(payload): JsonPayload<AuthPayload>) -> HandlerRes
 
 pub async fn protected(claims: Claims) -> HandlerResult<String> {
     Ok(Json(ResponseBody::ok(format!("{:#?}", claims).to_string())))
+}
+
+pub fn get_router() -> Router {
+    Router::new()
+        .route("/login", post(login))
+        .route("/protected", get(protected))
 }
