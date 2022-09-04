@@ -55,14 +55,8 @@ impl From<Box<dyn Error>> for AppError {
     }
 }
 
-impl From<deadpool_postgres::PoolError> for AppError {
-    fn from(err: deadpool_postgres::PoolError) -> Self {
-        Self::from_err(Box::new(err), Some(ResponseStatus::DBError))
-    }
-}
-
-impl From<tokio_postgres::Error> for AppError {
-    fn from(err: tokio_postgres::Error) -> Self {
+impl From<rbatis::rbdc::Error> for AppError {
+    fn from(err: rbatis::rbdc::Error) -> Self {
         Self::from_err(Box::new(err), Some(ResponseStatus::DBError))
     }
 }

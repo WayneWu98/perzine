@@ -20,7 +20,6 @@ pub struct JWTConfig {
 #[derive(Deserialize, Debug)]
 pub struct AppConfig {
     pub server: ServerConfig,
-    pub pg: deadpool_postgres::Config,
     pub jwt: JWTConfig,
 }
 
@@ -38,7 +37,7 @@ impl AppConfig {
 }
 
 pub struct AppState {
-    pub pool: deadpool_postgres::Pool,
+    pub rb: rbatis::Rbatis,
 }
 
 use once_cell::sync::Lazy;
