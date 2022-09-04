@@ -6,20 +6,40 @@ use serde_repr::Serialize_repr;
 #[repr(u16)]
 pub enum ResponseStatus {
     OK = 2000,
-    Forbidden = 4001,
-    InvalidToken = 40002,
-    ExpiredToken = 40003,
-    TokenCreation = 40004,
-    NotFound = 4004,
+    InvalidRequest = 4000,
+    Forbidden = 4010,
+    InvalidToken = 4011,
+    ExpiredToken = 4012,
+    NotFound = 4040,
+    UnkownError = 5000,
     DBError = 5001,
-    UnkownError = 5004,
+    TokenCreation = 5002,
 }
 
 impl ResponseStatus {
     pub fn res(&self) -> (HTTPCode, String) {
         match self {
-            ResponseStatus::Forbidden => (HTTPCode::UNAUTHORIZED, "forbidden.".to_string()),
-            _ => (HTTPCode::OK, "success".to_string()),
+            ResponseStatus::InvalidRequest => (
+                HTTPCode::BAD_REQUEST,
+                "invalid request, please check request payload or headers.".to_owned(),
+            ),
+            ResponseStatus::Forbidden => (HTTPCode::UNAUTHORIZED, "forbidden.".to_owned()),
+            ResponseStatus::InvalidToken => (HTTPCode::UNAUTHORIZED, "invalid token.".to_owned()),
+            ResponseStatus::ExpiredToken => {
+                (HTTPCode::UNAUTHORIZED, "token is expired.".to_owned())
+            }
+            ResponseStatus::NotFound => {
+                (HTTPCode::NOT_FOUND, "resources does not exist.".to_owned())
+            }
+            ResponseStatus::UnkownError => {
+                (HTTPCode::INTERNAL_SERVER_ERROR, "unknown error.".to_owned())
+            }
+            ResponseStatus::DBError => (HTTPCode::INTERNAL_SERVER_ERROR, "DB error.".to_owned()),
+            ResponseStatus::TokenCreation => (
+                HTTPCode::INTERNAL_SERVER_ERROR,
+                "creates token fail.".to_owned(),
+            ),
+            _ => (HTTPCode::OK, "success".to_owned()),
         }
     }
 }

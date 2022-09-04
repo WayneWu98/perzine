@@ -70,6 +70,10 @@ impl From<tokio_postgres::Error> for AppError {
 impl axum::response::IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let (http_code, msg) = self.code.res();
+        let msg = match self.msg {
+            Some(v) => v,
+            None => msg,
+        };
         (http_code, Json(ResponseBody::error(self.code, msg))).into_response()
     }
 }

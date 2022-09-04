@@ -1,5 +1,5 @@
-pub mod auth;
 pub mod error;
+pub mod extract;
 pub mod response;
 
 use std::sync::Arc;
@@ -13,10 +13,16 @@ pub struct ServerConfig {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct JWTConfig {
+    pub secret: String,
+    pub expires: i64,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct AppConfig {
     pub server: ServerConfig,
     pub pg: deadpool_postgres::Config,
-    pub jwt_secret: String,
+    pub jwt: JWTConfig,
 }
 
 impl AppConfig {

@@ -3,7 +3,7 @@ use axum::{
     extract::{FromRequest, RequestParts, TypedHeader},
     headers::{authorization::Bearer, Authorization},
 };
-use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
+use jsonwebtoken::{decode, errors::ErrorKind, DecodingKey, EncodingKey, Validation};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +21,7 @@ impl Key {
     }
 }
 
-pub static KEY: Lazy<Key> = Lazy::new(|| Key::new(crate::core::APP_CONFIG.jwt_secret.as_bytes()));
+pub static KEY: Lazy<Key> = Lazy::new(|| Key::new(crate::core::APP_CONFIG.jwt.secret.as_bytes()));
 
 use crate::core::error::AppError;
 
@@ -29,10 +29,10 @@ use crate::core::error::AppError;
 pub struct Claims {
     pub email: String,
     pub nickname: String,
-    pub exp: usize,
+    pub exp: i64,
 }
 
-use super::response::ResponseStatus;
+use crate::core::response::ResponseStatus;
 #[async_trait]
 impl<T> FromRequest<T> for Claims
 where
@@ -48,8 +48,14 @@ where
             TypedHeader::<Authorization<Bearer>>::from_request(req)
                 .await
                 .map_err(|_| AppError::from_code(ResponseStatus::InvalidToken, None))?;
-        let token_data = decode(bearer.token(), &KEY.decoding, &Validation::default())
-            .map_err(|_| AppError::from_code(ResponseStatus::InvalidToken, None))?;
+        let token_data =
+            decode(bearer.token(), &KEY.decoding, &Validation::default()).map_err(|err| {
+                let code = match err.kind() {
+                    ErrorKind::ExpiredSignature => ResponseStatus::ExpiredToken,
+                    _ => ResponseStatus::InvalidToken,
+                };
+                AppError::from_code(code, None)
+            })?;
         Ok(token_data.claims)
     }
 }

@@ -1,10 +1,15 @@
+use std::ops::Add;
+
 use axum::Json;
 use jsonwebtoken::{encode, Header};
 use serde::{Deserialize, Serialize};
 
 use crate::core::{
-    auth::{Claims, KEY},
     error::AppError,
+    extract::{
+        auth::{Claims, KEY},
+        JsonPayload,
+    },
     response::{HandlerResult, ResponseBody, ResponseStatus},
 };
 
@@ -29,13 +34,15 @@ pub struct AuthPayload {
     password: String,
 }
 
-pub async fn login(Json(payload): Json<AuthPayload>) -> HandlerResult<AuthBody> {
+use crate::core::APP_CONFIG;
+
+pub async fn login(JsonPayload(payload): JsonPayload<AuthPayload>) -> HandlerResult<AuthBody> {
     println!("login payload: {:#?}", payload);
 
     let claims = Claims {
         email: "wayne-wu@163.com".to_owned(),
         nickname: "wayne".to_owned(),
-        exp: 60 * 60 * 12,
+        exp: chrono::Local::now().timestamp() + APP_CONFIG.clone().jwt.expires,
     };
 
     let token = encode(&Header::default(), &claims, &KEY.encoding)
