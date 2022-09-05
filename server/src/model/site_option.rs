@@ -1,3 +1,4 @@
+use rbatis::{impl_select, impl_update};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -20,6 +21,8 @@ impl SiteOption {
 }
 
 rbatis::crud!(SiteOption {}, "options");
+impl_select!(SiteOption { select_by_name(table_name: &str, name: String) -> Option => "`where name = #{name} limit 1`" });
+impl_update!(SiteOption { update_by_name(name: String) => "`where name = #{name}`" });
 
 pub fn map(options: Vec<SiteOption>) -> HashMap<String, Option<String>> {
     let mut opts = HashMap::new();

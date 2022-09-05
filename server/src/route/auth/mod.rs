@@ -29,6 +29,7 @@ impl AuthBody {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct AuthPayload {
     email: String,
