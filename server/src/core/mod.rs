@@ -12,6 +12,14 @@ pub struct ServerConfig {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct PGConfig {
+    pub host: String,
+    pub db: String,
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct JWTConfig {
     pub secret: String,
     pub expires: i64,
@@ -20,6 +28,7 @@ pub struct JWTConfig {
 #[derive(Deserialize, Debug)]
 pub struct AppConfig {
     pub server: ServerConfig,
+    pub pg: PGConfig,
     pub jwt: JWTConfig,
 }
 
@@ -37,7 +46,7 @@ impl AppConfig {
 }
 
 pub struct AppState {
-    pub rb: rbatis::Rbatis,
+    pub db: sea_orm::DatabaseConnection,
 }
 
 use once_cell::sync::Lazy;

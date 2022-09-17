@@ -55,13 +55,6 @@ impl From<Box<dyn Error>> for AppError {
     }
 }
 
-impl From<rbatis::rbdc::Error> for AppError {
-    fn from(err: rbatis::rbdc::Error) -> Self {
-        println!("{:#?}", err);
-        Self::from_err(Box::new(err), Some(ResponseStatus::DBError))
-    }
-}
-
 impl axum::response::IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let (http_code, msg) = self.code.res();
