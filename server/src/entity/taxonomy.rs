@@ -1,9 +1,10 @@
-use sea_orm::{entity::prelude::*, ConnectionTrait};
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "taxonomy")]
 pub struct Model {
+    #[serde(skip_deserializing)]
     #[sea_orm(primary_key)]
     pub id: i32,
     pub name: String,
@@ -12,7 +13,7 @@ pub struct Model {
     #[sea_orm(nullable)]
     pub cover: Option<String>,
     #[serde(skip)]
-    #[sea_orm(column_name = "type", default_value = TaxonomyType::CATEGORY, indexed)]
+    #[sea_orm(column_name = "type", indexed)]
     pub t_type: TaxonomyType,
 }
 
@@ -20,16 +21,16 @@ pub struct Model {
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "TAXONOMY_TYPE")]
 pub enum TaxonomyType {
     #[sea_orm(string_value = "category")]
-    CATEGORY,
+    Category,
     #[sea_orm(string_value = "tag")]
-    TAG,
+    Tag,
     #[sea_orm(string_value = "series")]
-    SERIES,
+    Series,
 }
 
 impl Default for TaxonomyType {
     fn default() -> Self {
-        Self::CATEGORY
+        Self::Category
     }
 }
 
@@ -48,15 +49,30 @@ impl Related<super::post::Entity> for Entity {
 }
 
 impl Model {
-    pub async fn is_exist<C: ConnectionTrait>(
+    pub async fn is_exist_in_name(
+        name: String,
+        t_type: TaxonomyType,
+        db: &DatabaseConnection,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        Ok(Entity::find()
+            .filter(Column::Name.eq(name))
+            .filter(Column::TType.eq(t_type))
+            .one(db)
+            .await?
+            .is_some())
+    }
+    pub async fn is_exist_in_id(
         id: i32,
         t_type: TaxonomyType,
-        db: &C,
+        db: &DatabaseConnection,
     ) -> Result<bool, Box<dyn std::error::Error>> {
-        Ok(Entity::find_by_id(id)
+        Ok(Entity::find()
+            .filter(Column::Id.eq(id))
             .filter(Column::TType.eq(t_type))
             .one(db)
             .await?
             .is_some())
     }
 }
+
+pub use Model as Taxonomy;

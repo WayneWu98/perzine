@@ -16,12 +16,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     opt.min_connections(8).max_connections(16);
     let db = Database::connect(opt).await?;
     let app = perzine_server::route::init(AppState { db });
-    axum::Server::bind(
-        &format!("{}:{}", server_conf.host, server_conf.port)
-            .parse()
-            .unwrap(),
-    )
-    .serve(app.into_make_service())
-    .await?;
+    axum::Server::bind(&server_conf.addr)
+        .serve(app.into_make_service())
+        .await?;
     Ok(())
 }

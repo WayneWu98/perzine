@@ -1,3 +1,4 @@
+use crate::core::error::ErrorCode;
 use axum::{
     async_trait,
     extract::{FromRequest, RequestParts, TypedHeader},
@@ -32,27 +33,50 @@ pub struct Claims {
     pub exp: i64,
 }
 
-use crate::core::response::ResponseStatus;
 #[async_trait]
 impl<T: Send + Sync> FromRequest<T> for Claims {
     type Rejection = AppError;
 
     async fn from_request(req: &mut RequestParts<T>) -> Result<Self, Self::Rejection> {
         if !req.headers().contains_key("Authorization") {
-            return Err(AppError::from_code(ResponseStatus::Forbidden, None));
+            return Err(AppError::from_code(ErrorCode::Forbidden, None));
         }
         let TypedHeader(Authorization(bearer)) =
             TypedHeader::<Authorization<Bearer>>::from_request(req)
                 .await
-                .map_err(|_| AppError::from_code(ResponseStatus::InvalidToken, None))?;
+                .map_err(|_| AppError::from_code(ErrorCode::InvalidToken, None))?;
         let token_data =
             decode(bearer.token(), &KEY.decoding, &Validation::default()).map_err(|err| {
                 let code = match err.kind() {
-                    ErrorKind::ExpiredSignature => ResponseStatus::ExpiredToken,
-                    _ => ResponseStatus::InvalidToken,
+                    ErrorKind::ExpiredSignature => ErrorCode::ExpiredToken,
+                    _ => ErrorCode::InvalidToken,
                 };
                 AppError::from_code(code, None)
             })?;
         Ok(token_data.claims)
+    }
+}
+
+pub struct WeekClaims {
+    pub claims: Option<Claims>,
+}
+
+impl WeekClaims {
+    pub fn is_authed(&self) -> bool {
+        self.claims.is_some()
+    }
+}
+
+#[async_trait]
+impl<T: Send + Sync> FromRequest<T> for WeekClaims {
+    type Rejection = AppError;
+
+    async fn from_request(req: &mut RequestParts<T>) -> Result<Self, Self::Rejection> {
+        match Claims::from_request(req).await {
+            Ok(claims) => Ok(Self {
+                claims: Some(claims),
+            }),
+            Err(_) => Ok(Self { claims: None }),
+        }
     }
 }

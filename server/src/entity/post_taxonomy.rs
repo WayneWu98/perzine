@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "post_taxonomy")]
 pub struct Model {
+    #[serde(skip_deserializing)]
     #[sea_orm(primary_key)]
     pub id: i64,
     pub post_id: i64,

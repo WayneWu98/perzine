@@ -4,7 +4,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::core::{error::AppError, response::ResponseStatus};
+use crate::core::error::{AppError, ErrorCode};
 
 #[derive(Deserialize)]
 struct OptionalPagination {
@@ -25,9 +25,9 @@ impl<T: Send + Sync> FromRequest<T> for Pagination {
         let Query(OptionalPagination { page, per }) =
             Query::<OptionalPagination>::from_request(req)
                 .await
-                .map_err(|_| AppError::from_code(ResponseStatus::UnkownError, None))?;
+                .map_err(|_| AppError::from_code(ErrorCode::UnkownError, None))?;
         Ok(Pagination {
-            page: page.unwrap_or(1),
+            page: page.map_or(0, |n| n - 1),
             per: per.unwrap_or(10),
         })
     }

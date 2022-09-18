@@ -7,6 +7,7 @@ use serde_enum_str::{Deserialize_enum_str, Serialize_enum_str};
 #[serde(rename_all = "camelCase")]
 #[sea_orm(table_name = "taxonomy")]
 pub struct Model {
+    #[serde(skip_deserializing)]
     #[sea_orm(primary_key)]
     pub id: i64,
     pub title: String,

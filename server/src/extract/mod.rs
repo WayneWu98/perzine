@@ -5,6 +5,7 @@ mod path;
 mod query;
 
 pub use auth::Claims;
+pub use auth::WeekClaims;
 pub use json_payload::JsonPayload;
 pub use pagination::Pagination;
 pub use path::Path;

@@ -5,8 +5,8 @@ use jsonwebtoken::{encode, Header};
 use serde::{Deserialize, Serialize};
 
 use crate::core::{
-    error::AppError,
-    response::{HandlerResult, ResponseBody, ResponseStatus},
+    error::{AppError, ErrorCode},
+    response::{HandlerResult, ResponseBody},
 };
 
 use crate::extract::{
@@ -39,8 +39,6 @@ pub struct AuthPayload {
 use crate::core::APP_CONFIG;
 
 pub async fn login(JsonPayload(payload): JsonPayload<AuthPayload>) -> HandlerResult<AuthBody> {
-    println!("login payload: {:#?}", payload);
-
     let claims = Claims {
         email: "wayne-wu@163.com".to_owned(),
         nickname: "wayne".to_owned(),
@@ -48,7 +46,7 @@ pub async fn login(JsonPayload(payload): JsonPayload<AuthPayload>) -> HandlerRes
     };
 
     let token = encode(&Header::default(), &claims, &KEY.encoding)
-        .map_err(|_| AppError::from_code(ResponseStatus::TokenCreation, None))?;
+        .map_err(|_| AppError::from_code(ErrorCode::TokenCreation, None))?;
 
     Ok(Json(ResponseBody::ok(AuthBody::new(token))))
 }
