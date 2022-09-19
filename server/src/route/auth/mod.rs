@@ -14,21 +14,6 @@ use crate::extract::{
     JsonPayload,
 };
 
-#[derive(Debug, Serialize)]
-pub struct AuthBody {
-    access_token: String,
-    token_type: String,
-}
-
-impl AuthBody {
-    fn new(access_token: String) -> Self {
-        Self {
-            access_token,
-            token_type: "Bearer".to_string(),
-        }
-    }
-}
-
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct AuthPayload {
@@ -38,7 +23,7 @@ pub struct AuthPayload {
 
 use crate::core::APP_CONFIG;
 
-pub async fn login(JsonPayload(payload): JsonPayload<AuthPayload>) -> HandlerResult<AuthBody> {
+pub async fn login(JsonPayload(payload): JsonPayload<AuthPayload>) -> HandlerResult<String> {
     let claims = Claims {
         email: "wayne-wu@163.com".to_owned(),
         nickname: "wayne".to_owned(),
@@ -48,7 +33,7 @@ pub async fn login(JsonPayload(payload): JsonPayload<AuthPayload>) -> HandlerRes
     let token = encode(&Header::default(), &claims, &KEY.encoding)
         .map_err(|_| AppError::from_code(ErrorCode::TokenCreation, None))?;
 
-    Ok(Json(ResponseBody::ok(AuthBody::new(token))))
+    Ok(Json(ResponseBody::ok(token)))
 }
 
 pub async fn protected(claims: Claims) -> HandlerResult<String> {
