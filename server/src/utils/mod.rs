@@ -7,6 +7,12 @@ pub enum SqlOrder {
     Desc,
 }
 
+impl Default for SqlOrder {
+    fn default() -> Self {
+        Self::Desc
+    }
+}
+
 impl SqlOrder {
     pub fn order(&self) -> sea_orm::Order {
         match self {
