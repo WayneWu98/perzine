@@ -14,11 +14,14 @@ pub struct Model {
     #[sea_orm(nullable)]
     pub sub_title: String,
     #[serde(skip)]
-    #[sea_orm(nullable)]
     pub created: DateTime<Utc>,
     pub modified: DateTime<Utc>,
     pub published: DateTime<Utc>,
     pub content: serde_json::Value,
+    #[sea_orm(nullable)]
+    pub route: String,
+    #[serde(skip)]
+    pub is_page: bool,
     #[serde(skip)]
     pub status: PostStatus,
 }
