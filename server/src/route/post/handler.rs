@@ -1,74 +1,29 @@
-// pub fn get_contents(_claims: WeekClaims, Extension(state): Extension<Arc<AppState>>, pagination: Pagina)
-
-// macro_rules! get_contents_handler {
-//     ($name: ident) => {
-//         pub fn $name() ->
-//     };
-// }
-
 use std::sync::Arc;
 
 use axum::Extension;
-use chrono::Utc;
-use sea_orm::{ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder};
-use serde::Deserialize;
-use serde_enum_str::Deserialize_enum_str;
+
+use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, PaginatorTrait, QueryFilter, QueryOrder};
 
 use crate::{
     core::{
         response::{HandlerResult, PaginationData, ResponseBody},
         AppState,
     },
-    entity::post,
+    entity::{
+        post,
+        taxonomy::{self, ClassifiedTaxonomy, ClassifyTaxonomy},
+    },
     extract::{Pagination, Query, WeekClaims},
 };
 
-#[derive(Deserialize_enum_str)]
-#[serde(rename_all = "camelCase")]
-enum OrderKey {
-    Published,
-    Modified,
-}
-
-impl OrderKey {
-    fn column(&self) -> post::Column {
-        match self {
-            OrderKey::Published => post::Column::Published,
-            OrderKey::Modified => post::Column::Modified,
-        }
-    }
-}
-
-fn is_valid_order(col: &post::Column) -> bool {
-    match col {
-        post::Column::Modified => true,
-        post::Column::Published => true,
-        _ => false,
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Filter {
-    all: Option<String>,
-    created_from: Option<chrono::DateTime<Utc>>,
-    created_to: Option<chrono::DateTime<Utc>>,
-    modified_from: Option<chrono::DateTime<Utc>>,
-    modified_to: Option<chrono::DateTime<Utc>>,
-    published_from: Option<chrono::DateTime<Utc>>,
-    published_to: Option<chrono::DateTime<Utc>>,
-    status: Option<post::PostStatus>,
-    keyword: Option<String>,
-    order_by: Option<post::Column>,
-    order: Option<sea_orm::Order>,
-}
+use super::utils::{Filter, PostRes};
 
 pub async fn get_contents(
     w_claims: WeekClaims,
     Extension(state): Extension<Arc<AppState>>,
     Pagination { page, per }: Pagination,
     Query(filter): Query<Filter>,
-) -> HandlerResult<PaginationData<Vec<post::Model>>> {
+) -> HandlerResult<PaginationData<Vec<PostRes>>> {
     // #region filter condition
     let mut cond = sea_orm::Condition::all();
     if let Some(v) = filter.keyword {
@@ -109,17 +64,34 @@ pub async fn get_contents(
     let paginator = post::Entity::find()
         .filter(cond)
         .order_by(
-            filter.order_by.map_or(post::Column::Published, |col| {
-                if is_valid_order(&col) {
-                    col
-                } else {
-                    post::Column::Published
-                }
-            }),
-            filter.order.map_or(sea_orm::Order::Desc, |v| v),
+            filter
+                .order_by
+                .unwrap_or_default()
+                .column(w_claims.is_authed()),
+            filter.order.map_or(sea_orm::Order::Desc, |v| v.order()),
         )
         .paginate(&state.db, per);
     let total = paginator.num_items().await?;
     let items = paginator.fetch_page(page).await?;
-    Ok(axum::Json(ResponseBody::with_pagination_data(items, total)))
+    let mut formatted = Vec::with_capacity(items.len());
+    for item in items.into_iter() {
+        let ClassifiedTaxonomy {
+            categories,
+            tags,
+            mut series,
+        } = item
+            .find_related(taxonomy::Entity)
+            .all(&state.db)
+            .await?
+            .classify();
+        formatted.push(
+            PostRes::new(item)
+                .with_categories(categories)
+                .with_tags(tags)
+                .with_series(series.pop()),
+        );
+    }
+    Ok(axum::Json(ResponseBody::with_pagination_data(
+        formatted, total,
+    )))
 }

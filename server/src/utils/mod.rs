@@ -1,6 +1,6 @@
 use serde_enum_str::Deserialize_enum_str;
 
-#[derive(Deserialize_enum_str)]
+#[derive(Debug, Deserialize_enum_str)]
 #[serde(rename_all = "camelCase")]
 pub enum SqlOrder {
     Asc,
