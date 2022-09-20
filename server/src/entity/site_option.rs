@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_enum_str::Deserialize_enum_str;
 use std::collections::HashMap;
 
-use sea_orm::{entity::prelude::*, sea_query::Mode};
+use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Deserialize)]
 #[serde(rename_all = "camelCase")]

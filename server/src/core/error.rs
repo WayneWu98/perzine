@@ -1,9 +1,9 @@
 use axum::{http::StatusCode, Json};
 use std::{error::Error, fmt::Display};
 
-use serde_repr::Serialize_repr;
-
 use crate::core::response::ResponseBody;
+use sea_orm::TransactionError;
+use serde_repr::Serialize_repr;
 
 #[derive(Clone, Serialize_repr, PartialEq, Debug)]
 #[repr(u16)]
@@ -55,9 +55,9 @@ pub struct AppError {
 }
 
 impl AppError {
-    pub fn from_err(err: Box<dyn Error>, code: Option<ErrorCode>) -> Self {
+    pub fn from_err(err: Box<dyn Error>, code: Option<ErrorCode>, msg: Option<String>) -> Self {
         Self {
-            msg: None,
+            msg,
             source: Some(err),
             code: match code {
                 Some(code) => code,
@@ -94,13 +94,26 @@ impl Display for AppError {
 
 impl From<Box<dyn Error>> for AppError {
     fn from(err: Box<dyn Error>) -> Self {
-        Self::from_err(err, None)
+        Self::from_err(err, None, None)
     }
 }
 
 impl From<sea_orm::error::DbErr> for AppError {
     fn from(err: sea_orm::error::DbErr) -> Self {
-        Self::from_str(err.to_string(), Some(ErrorCode::DBError))
+        Self::from_err(Box::new(err), Some(ErrorCode::DBError), None)
+    }
+}
+
+impl<T: Error + 'static> From<sea_orm::TransactionError<T>> for AppError {
+    fn from(err: TransactionError<T>) -> Self {
+        match err {
+            TransactionError::Connection(err) => Self::from(err),
+            TransactionError::Transaction(err) => Self::from_err(
+                Box::new(err),
+                Some(ErrorCode::UnkownError),
+                Some("unkown error".to_owned()),
+            ),
+        }
     }
 }
 

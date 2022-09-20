@@ -17,6 +17,17 @@ pub struct Model {
     pub created: DateTime<Utc>,
     pub modified: DateTime<Utc>,
     pub published: DateTime<Utc>,
+    #[serde(skip_serializing)]
+    #[sea_orm(ignore)]
+    pub categories: Vec<i32>,
+    #[serde(skip_serializing)]
+    #[sea_orm(ignore)]
+    pub tags: Vec<i32>,
+    #[serde(skip_serializing)]
+    #[sea_orm(ignore)]
+    pub series: Option<i32>,
+    #[sea_orm(nullable)]
+    pub excerpts: String,
     pub content: serde_json::Value,
     #[sea_orm(nullable)]
     pub route: String,

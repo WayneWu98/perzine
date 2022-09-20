@@ -28,6 +28,12 @@ pub enum TaxonomyType {
     Series,
 }
 
+impl sea_orm::IntoActiveValue<TaxonomyType> for TaxonomyType {
+    fn into_active_value(self) -> sea_orm::ActiveValue<TaxonomyType> {
+        sea_orm::ActiveValue::Set(self)
+    }
+}
+
 impl Default for TaxonomyType {
     fn default() -> Self {
         Self::Category
@@ -48,31 +54,41 @@ impl Related<super::post::Entity> for Entity {
     }
 }
 
-impl Model {
-    pub async fn is_exist_in_name(
-        name: String,
-        t_type: TaxonomyType,
-        db: &DatabaseConnection,
-    ) -> Result<bool, Box<dyn std::error::Error>> {
-        Ok(Entity::find()
-            .filter(Column::Name.eq(name))
-            .filter(Column::TType.eq(t_type))
-            .one(db)
-            .await?
-            .is_some())
-    }
-    pub async fn is_exist_in_id(
-        id: i32,
-        t_type: TaxonomyType,
-        db: &DatabaseConnection,
-    ) -> Result<bool, Box<dyn std::error::Error>> {
-        Ok(Entity::find()
-            .filter(Column::Id.eq(id))
-            .filter(Column::TType.eq(t_type))
-            .one(db)
-            .await?
-            .is_some())
-    }
+pub async fn is_exist_in_name(
+    name: String,
+    t_type: TaxonomyType,
+    db: &DatabaseConnection,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    Ok(Entity::find()
+        .filter(Column::Name.eq(name))
+        .filter(Column::TType.eq(t_type))
+        .one(db)
+        .await?
+        .is_some())
+}
+pub async fn is_exist_in_id(
+    id: i32,
+    t_type: TaxonomyType,
+    db: &DatabaseConnection,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    Ok(Entity::find()
+        .filter(Column::Id.eq(id))
+        .filter(Column::TType.eq(t_type))
+        .one(db)
+        .await?
+        .is_some())
+}
+pub async fn is_valid_taxonomy(
+    db: &DatabaseConnection,
+    ids: Vec<i32>,
+    t_type: TaxonomyType,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    Ok(Entity::find()
+        .filter(Column::Id.is_in(ids))
+        .all(db)
+        .await?
+        .into_iter()
+        .all(|item| item.t_type.eq(&t_type)))
 }
 
 pub struct ClassifiedTaxonomy {

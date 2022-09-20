@@ -2,7 +2,7 @@ use axum::routing::post;
 use axum::Json;
 use axum::{routing::get, Router};
 use jsonwebtoken::{encode, Header};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::core::{
     error::{AppError, ErrorCode},
@@ -23,7 +23,7 @@ pub struct AuthPayload {
 
 use crate::core::APP_CONFIG;
 
-pub async fn login(JsonPayload(payload): JsonPayload<AuthPayload>) -> HandlerResult<String> {
+pub async fn login(JsonPayload(_payload): JsonPayload<AuthPayload>) -> HandlerResult<String> {
     let claims = Claims {
         email: "wayne-wu@163.com".to_owned(),
         nickname: "wayne".to_owned(),

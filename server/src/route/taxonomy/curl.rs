@@ -53,7 +53,7 @@ pub async fn create_taxonomy(
 ) -> HandlerResult<Taxonomy> {
     let mut am = taxonomy::ActiveModel::from_json(jv)?;
     let name: String = am.name.clone().take().unwrap_or("".to_owned());
-    if taxonomy::Model::is_exist_in_name(name.clone(), t_type.clone(), &state.db).await? {
+    if taxonomy::is_exist_in_name(name.clone(), t_type.clone(), &state.db).await? {
         return Err(AppError::from_code(
             ErrorCode::InvalidRequest,
             Some(format!("the taxonomy named \"{}\" has been exist.", name)),
@@ -74,7 +74,7 @@ pub async fn update_taxonomy(
 ) -> HandlerResult<Taxonomy> {
     let mut am = taxonomy::ActiveModel::from_json(jv)?;
     am.id = ActiveValue::Set(id);
-    if !taxonomy::Model::is_exist_in_id(id, t_type, &state.db).await? {
+    if !taxonomy::is_exist_in_id(id, t_type, &state.db).await? {
         return Err(AppError::from_code(ErrorCode::NotFound, None));
     }
     if let Some(name) = am.name.clone().take() {
