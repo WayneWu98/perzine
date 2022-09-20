@@ -17,6 +17,7 @@ pub enum ErrorCode {
     UnkownError = 5000,
     DBError = 5001,
     TokenCreation = 5002,
+    DataParsingError = 5003,
 }
 
 impl ErrorCode {
@@ -41,6 +42,10 @@ impl ErrorCode {
             ErrorCode::TokenCreation => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "creates token fail.".to_owned(),
+            ),
+            ErrorCode::DataParsingError => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "data parsing error.".to_owned(),
             ),
             _ => (StatusCode::OK, "success".to_owned()),
         }
@@ -104,6 +109,12 @@ impl From<sea_orm::error::DbErr> for AppError {
     }
 }
 
+impl From<serde_json::error::Error> for AppError {
+    fn from(err: serde_json::error::Error) -> Self {
+        Self::from_err(Box::new(err), Some(ErrorCode::DBError), None)
+    }
+}
+
 impl<T: Error + 'static> From<sea_orm::TransactionError<T>> for AppError {
     fn from(err: TransactionError<T>) -> Self {
         match err {
@@ -124,6 +135,9 @@ impl axum::response::IntoResponse for AppError {
             Some(v) => v,
             None => msg,
         };
+        if let Some(err) = self.source {
+            println!("error fired: {:#?}", err);
+        }
         (http_code, Json(ResponseBody::error(self.code, msg))).into_response()
     }
 }

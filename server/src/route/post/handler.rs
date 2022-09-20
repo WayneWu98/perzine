@@ -1,12 +1,12 @@
-use std::{any::TypeId, sync::Arc};
+use std::sync::Arc;
 
 use axum::Extension;
 
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, IntoActiveModel, ModelTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, TransactionTrait,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::{
     core::{
@@ -15,22 +15,23 @@ use crate::{
         AppState,
     },
     entity::{
-        post::{self},
+        post::{self, NewPost},
         post_taxonomy,
-        taxonomy::{self, ClassifiedTaxonomy, ClassifyTaxonomy},
+        taxonomy::{self, TaxonomyType},
     },
     extract::{Claims, JsonPayload, Pagination, Path, Query, WeekClaims},
 };
 
-use super::utils::{fill_post, gen_common_selec, Filter, PostRes};
+use super::utils::{fill_post, gen_common_selec, Filter, WithExtra};
 
 pub async fn get_posts(
     w_claims: WeekClaims,
     Extension(state): Extension<Arc<AppState>>,
     Pagination { page, per }: Pagination,
     Query(filter): Query<Filter>,
-) -> HandlerResult<PaginationData<Vec<PostRes>>> {
-    let paginator = gen_common_selec(w_claims.is_authed())
+    Query(WithExtra { extra }): Query<WithExtra>,
+) -> HandlerResult<PaginationData<Vec<post::Model>>> {
+    let paginator = gen_common_selec(w_claims.is_authed(), extra.is_some())
         .filter(filter.condition(w_claims.is_authed()))
         .order_by(filter.order_by(w_claims.is_authed()), filter.order())
         .paginate(&state.db, per);
@@ -38,21 +39,7 @@ pub async fn get_posts(
     let items = paginator.fetch_page(page).await?;
     let mut formatted = Vec::with_capacity(items.len());
     for item in items.into_iter() {
-        let ClassifiedTaxonomy {
-            categories,
-            tags,
-            mut series,
-        } = item
-            .find_related(taxonomy::Entity)
-            .all(&state.db)
-            .await?
-            .classify();
-        formatted.push(
-            PostRes::new(item)
-                .with_categories(categories)
-                .with_tags(tags)
-                .with_series(series.pop()),
-        );
+        formatted.push(item.with_taxonomy(&state.db).await?);
     }
     Ok(axum::Json(ResponseBody::with_pagination_data(
         formatted, total,
@@ -63,33 +50,42 @@ pub async fn get_post_by_id(
     w_claims: WeekClaims,
     Extension(state): Extension<Arc<AppState>>,
     Path(id): Path<i64>,
-) -> HandlerResult<PostRes> {
-    let content =
-        super::utils::get_post_by_filter(&state.db, post::Column::Id.eq(id), w_claims.is_authed())
-            .await?;
-    let content = match content {
+    Query(WithExtra { extra }): Query<WithExtra>,
+) -> HandlerResult<post::Model> {
+    let model = super::utils::get_post_by_filter(
+        &state.db,
+        post::Column::Id.eq(id),
+        w_claims.is_authed(),
+        extra.is_some(),
+    )
+    .await?;
+    match model {
         None => return Err(AppError::from_code(ErrorCode::NotFound, None)),
-        Some(v) => v,
-    };
-    Ok(axum::Json(ResponseBody::ok(content)))
+        Some(v) => Ok(axum::Json(ResponseBody::ok(
+            v.with_taxonomy(&state.db).await?,
+        ))),
+    }
 }
 
 pub async fn get_post_by_route(
     w_claims: WeekClaims,
     Extension(state): Extension<Arc<AppState>>,
     Path(route): Path<String>,
-) -> HandlerResult<PostRes> {
-    let content = super::utils::get_post_by_filter(
+    Query(WithExtra { extra }): Query<WithExtra>,
+) -> HandlerResult<post::Model> {
+    let model = super::utils::get_post_by_filter(
         &state.db,
         post::Column::Route.eq(route),
         w_claims.is_authed(),
+        extra.is_some(),
     )
     .await?;
-    let content = match content {
+    match model {
         None => return Err(AppError::from_code(ErrorCode::NotFound, None)),
-        Some(v) => v,
-    };
-    Ok(axum::Json(ResponseBody::ok(content)))
+        Some(v) => Ok(axum::Json(ResponseBody::ok(
+            v.with_taxonomy(&state.db).await?,
+        ))),
+    }
 }
 
 #[derive(Deserialize)]
@@ -98,38 +94,40 @@ pub struct UpdateExtraPayload {
     pub tags: Option<Vec<i32>>,
     pub series: Option<i32>,
 }
+#[derive(Deserialize)]
+pub struct CreateExtraPayload {
+    pub categories: Vec<i32>,
+    pub tags: Option<Vec<i32>>,
+    pub series: Option<i32>,
+}
 
 pub async fn create_post(
     _claims: Claims,
     Extension(state): Extension<Arc<AppState>>,
     JsonPayload(jv): JsonPayload<serde_json::Value>,
-    JsonPayload(UpdateExtraPayload {
+) -> HandlerResult<post::Model> {
+    let CreateExtraPayload {
         categories,
         tags,
         series,
-    }): JsonPayload<UpdateExtraPayload>,
-) -> HandlerResult<PostRes> {
+    } = serde_json::from_value(jv.clone())?;
     let txn = state.db.begin().await?;
-    let model = post::ActiveModel::from_json(jv)?.insert(&state.db).await?;
-    if let Some(tids) = categories {
-        post_taxonomy::update(&state.db, model.id, tids, taxonomy::TaxonomyType::Category).await?;
-    }
+    let new_post: NewPost = serde_json::from_value(jv.clone())?;
+
+    let model = new_post.into_active_model()?;
+    let model = model.insert(&state.db).await?;
+    post_taxonomy::update(&txn, model.id, categories, TaxonomyType::Category).await?;
     if let Some(tids) = tags {
-        post_taxonomy::update(&state.db, model.id, tids, taxonomy::TaxonomyType::Tag).await?;
+        post_taxonomy::update(&txn, model.id, tids, TaxonomyType::Tag).await?;
     }
     if let Some(tid) = series {
-        post_taxonomy::update(
-            &state.db,
-            model.id,
-            vec![tid],
-            taxonomy::TaxonomyType::Series,
-        )
-        .await?;
+        post_taxonomy::update(&txn, model.id, vec![tid], TaxonomyType::Series).await?;
     }
     txn.commit().await?;
-    let data = fill_post(&state.db, model).await?;
 
-    Ok(axum::Json(ResponseBody::ok(data)))
+    Ok(axum::Json(ResponseBody::ok(
+        fill_post(&state.db, model).await?,
+    )))
 }
 
 pub async fn update_post(
@@ -137,25 +135,42 @@ pub async fn update_post(
     Extension(state): Extension<Arc<AppState>>,
     Path(id): Path<i64>,
     JsonPayload(jv): JsonPayload<serde_json::Value>,
-    JsonPayload(UpdateExtraPayload {
+) -> HandlerResult<post::Model> {
+    let UpdateExtraPayload {
         categories,
         tags,
         series,
-    }): JsonPayload<UpdateExtraPayload>,
-) -> HandlerResult<()> {
+    } = serde_json::from_value(jv.clone())?;
+
     let mut am = post::ActiveModel::from_json(jv)?;
     am.id = ActiveValue::Set(id);
     let txn = (&state.db).begin().await?;
-    am.update(&txn).await?;
+    let model = am.update(&txn).await?;
     if let Some(tids) = categories {
-        post_taxonomy::update(&state.db, id, tids, taxonomy::TaxonomyType::Category).await?;
+        post_taxonomy::update(&txn, id, tids, taxonomy::TaxonomyType::Category).await?;
     }
     if let Some(tids) = tags {
-        post_taxonomy::update(&state.db, id, tids, taxonomy::TaxonomyType::Tag).await?;
+        post_taxonomy::update(&txn, id, tids, taxonomy::TaxonomyType::Tag).await?;
     }
     if let Some(tid) = series {
-        post_taxonomy::update(&state.db, id, vec![tid], taxonomy::TaxonomyType::Series).await?;
+        post_taxonomy::update(&txn, id, vec![tid], taxonomy::TaxonomyType::Series).await?;
     }
+    txn.commit().await?;
+    Ok(axum::Json(ResponseBody::ok(
+        model.with_taxonomy(&state.db).await?,
+    )))
+}
+
+pub async fn delete_post(
+    _claims: Claims,
+    Extension(state): Extension<Arc<AppState>>,
+    Path(id): Path<i64>,
+) -> HandlerResult<()> {
+    let txn = (state.db).begin().await?;
+    post::Entity::delete_by_id(id).exec(&txn).await?;
+    post_taxonomy::update(&txn, id, vec![], TaxonomyType::Category).await?;
+    post_taxonomy::update(&txn, id, vec![], TaxonomyType::Tag).await?;
+    post_taxonomy::update(&txn, id, vec![], TaxonomyType::Series).await?;
     txn.commit().await?;
     Ok(axum::Json(ResponseBody::ok(())))
 }

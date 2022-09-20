@@ -1,4 +1,4 @@
-use sea_orm::entity::prelude::*;
+use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
@@ -15,6 +15,8 @@ pub struct Model {
     #[serde(skip)]
     #[sea_orm(column_name = "type", indexed)]
     pub t_type: TaxonomyType,
+    #[sea_orm(nullable)]
+    pub extra: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, EnumIter, DeriveActiveEnum)]
@@ -79,7 +81,7 @@ pub async fn is_exist_in_id(
         .is_some())
 }
 pub async fn is_valid_taxonomy(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     ids: Vec<i32>,
     t_type: TaxonomyType,
 ) -> Result<bool, Box<dyn std::error::Error>> {

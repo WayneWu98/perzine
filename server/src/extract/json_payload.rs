@@ -20,10 +20,11 @@ where
     type Rejection = AppError;
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let payload = axum::Json::<T>::from_request(req)
-            .await
-            .map_err(|_| AppError::from_code(ErrorCode::InvalidRequest, None))?;
-
+        // let body = req.;
+        let payload = axum::Json::<T>::from_request(req).await.map_err(|err| {
+            println!("{:?}", err);
+            AppError::from_code(ErrorCode::InvalidRequest, None)
+        })?;
         Ok(Self(payload.0))
     }
 }

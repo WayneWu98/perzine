@@ -1,10 +1,9 @@
-use super::{post, taxonomy};
+use super::taxonomy;
 use sea_orm::prelude::*;
 use sea_orm::ColumnTrait;
+use sea_orm::ConnectionTrait;
 use sea_orm::DbErr;
 use sea_orm::IntoActiveModel;
-use sea_orm::TransactionTrait;
-use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "post_taxonomy")]
 pub struct Model {
@@ -48,7 +47,7 @@ impl UpdatePayload {
 }
 
 pub async fn update(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     pid: i64,
     tids: Vec<i32>,
     t_type: taxonomy::TaxonomyType,
@@ -60,22 +59,20 @@ pub async fn update(
     if !is_valid {
         return Err(Box::new(DbErr::Custom("invalid taxonomy".to_owned())));
     }
-    let txn = db.begin().await?;
     Entity::delete_many()
         .filter(
             Column::TaxonomyType
                 .eq(t_type.clone())
                 .and(Column::PostId.eq(pid)),
         )
-        .exec(&txn)
+        .exec(db)
         .await?;
     let items: Vec<ActiveModel> = tids
         .clone()
         .into_iter()
         .map(|tid| UpdatePayload::new(pid, tid, t_type.clone()).into_active_model())
         .collect();
-    Entity::insert_many(items).exec(&txn).await?;
-    txn.commit().await?;
+    Entity::insert_many(items).exec(db).await?;
     Ok(())
 }
 

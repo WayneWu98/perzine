@@ -3,7 +3,7 @@ use sea_orm::{
     sea_query::IntoCondition, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait,
     QueryFilter, QuerySelect,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_enum_str::Deserialize_enum_str;
 
 use crate::{
@@ -13,6 +13,11 @@ use crate::{
     },
     utils::SqlOrder,
 };
+
+#[derive(Deserialize)]
+pub struct WithExtra {
+    pub extra: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -111,39 +116,7 @@ impl Default for OrderKey {
     }
 }
 
-#[derive(Serialize)]
-pub struct PostRes {
-    #[serde(flatten)]
-    pub post: post::Model,
-    pub categories: Vec<taxonomy::Model>,
-    pub tags: Vec<taxonomy::Model>,
-    pub series: Option<taxonomy::Model>,
-}
-
-impl PostRes {
-    pub fn new(post: post::Model) -> Self {
-        Self {
-            post,
-            categories: Vec::with_capacity(0),
-            tags: Vec::with_capacity(0),
-            series: None,
-        }
-    }
-    pub fn with_categories(mut self, categories: Vec<taxonomy::Model>) -> Self {
-        self.categories = categories;
-        self
-    }
-    pub fn with_tags(mut self, tags: Vec<taxonomy::Model>) -> Self {
-        self.tags = tags;
-        self
-    }
-    pub fn with_series(mut self, series: Option<taxonomy::Model>) -> Self {
-        self.series = series;
-        self
-    }
-}
-
-pub fn gen_common_selec(is_authed: bool) -> sea_orm::Select<post::Entity> {
+pub fn gen_common_selec(is_authed: bool, extra: bool) -> sea_orm::Select<post::Entity> {
     let mut selc = post::Entity::find()
         .select_only()
         .column(post::Column::Id)
@@ -152,7 +125,9 @@ pub fn gen_common_selec(is_authed: bool) -> sea_orm::Select<post::Entity> {
         .column(post::Column::Modified)
         .column(post::Column::Published)
         .column(post::Column::Excerpts);
-
+    if extra {
+        selc = selc.column(post::Column::Extra);
+    }
     if is_authed {
         selc = selc
             .column(post::Column::Created)
@@ -163,28 +138,27 @@ pub fn gen_common_selec(is_authed: bool) -> sea_orm::Select<post::Entity> {
     selc
 }
 
-pub fn gen_full_selec(is_authed: bool) -> sea_orm::Select<post::Entity> {
-    gen_common_selec(is_authed).column(post::Column::Content)
+pub fn gen_full_selec(is_authed: bool, extra: bool) -> sea_orm::Select<post::Entity> {
+    gen_common_selec(is_authed, extra).column(post::Column::Content)
 }
 
 pub async fn get_post_by_filter(
     db: &DatabaseConnection,
     cond: impl IntoCondition,
     is_authed: bool,
-) -> Result<Option<PostRes>, Box<dyn std::error::Error>> {
-    let model = gen_full_selec(is_authed).filter(cond).one(db).await?;
-    let post = match model {
-        None => return Ok(None),
-        Some(model) => model,
-    };
-
-    Ok(Some(fill_post(db, post).await?))
+    extra: bool,
+) -> Result<Option<post::Model>, Box<dyn std::error::Error>> {
+    let model = gen_full_selec(is_authed, extra)
+        .filter(cond)
+        .one(db)
+        .await?;
+    Ok(model)
 }
 
 pub async fn fill_post(
     db: &DatabaseConnection,
-    model: post::Model,
-) -> Result<PostRes, Box<dyn std::error::Error>> {
+    mut model: post::Model,
+) -> Result<post::Model, Box<dyn std::error::Error>> {
     let ClassifiedTaxonomy {
         categories,
         tags,
@@ -194,9 +168,9 @@ pub async fn fill_post(
         .all(db)
         .await?
         .classify();
+    model.categories = Some(categories);
+    model.tags = Some(tags);
+    model.series = series.pop();
 
-    Ok(PostRes::new(model)
-        .with_categories(categories)
-        .with_tags(tags)
-        .with_series(series.pop()))
+    Ok(model)
 }

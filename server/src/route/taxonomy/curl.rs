@@ -51,6 +51,7 @@ pub async fn create_taxonomy(
     JsonPayload(jv): JsonPayload<serde_json::Value>,
     t_type: TaxonomyType,
 ) -> HandlerResult<Taxonomy> {
+    println!("{:?}", jv);
     let mut am = taxonomy::ActiveModel::from_json(jv)?;
     let name: String = am.name.clone().take().unwrap_or("".to_owned());
     if taxonomy::is_exist_in_name(name.clone(), t_type.clone(), &state.db).await? {
