@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use axum::Extension;
+use axum::{response::IntoResponse, Extension};
 
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, TransactionTrait,
+    QueryOrder, Related, TransactionTrait,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{
@@ -15,14 +15,14 @@ use crate::{
         AppState,
     },
     entity::{
-        post::{self, NewPost},
+        post::{self},
         post_taxonomy,
         taxonomy::{self, TaxonomyType},
     },
     extract::{Claims, JsonPayload, Pagination, Path, Query, WeekClaims},
 };
 
-use super::utils::{fill_post, gen_common_selec, Filter, WithExtra};
+use super::utils::{gen_common_selec, Filter, WithExtra};
 
 pub async fn get_posts(
     w_claims: WeekClaims,
@@ -51,7 +51,7 @@ pub async fn get_post_by_id(
     Extension(state): Extension<Arc<AppState>>,
     Path(id): Path<i64>,
     Query(WithExtra { extra }): Query<WithExtra>,
-) -> HandlerResult<post::Model> {
+) -> HandlerResult<impl Serialize> {
     let model = super::utils::get_post_by_filter(
         &state.db,
         post::Column::Id.eq(id),
@@ -111,11 +111,9 @@ pub async fn create_post(
         tags,
         series,
     } = serde_json::from_value(jv.clone())?;
+    let am = post::ActiveModel::from_json(jv.clone())?;
     let txn = state.db.begin().await?;
-    let new_post: NewPost = serde_json::from_value(jv.clone())?;
-
-    let model = new_post.into_active_model()?;
-    let model = model.insert(&state.db).await?;
+    let model = am.insert(&state.db).await?;
     post_taxonomy::update(&txn, model.id, categories, TaxonomyType::Category).await?;
     if let Some(tids) = tags {
         post_taxonomy::update(&txn, model.id, tids, TaxonomyType::Tag).await?;
@@ -126,7 +124,7 @@ pub async fn create_post(
     txn.commit().await?;
 
     Ok(axum::Json(ResponseBody::ok(
-        fill_post(&state.db, model).await?,
+        model.with_taxonomy(&state.db).await?,
     )))
 }
 
@@ -141,8 +139,10 @@ pub async fn update_post(
         tags,
         series,
     } = serde_json::from_value(jv.clone())?;
-
-    let mut am = post::ActiveModel::from_json(jv)?;
+    let mut am = post::ActiveModel {
+        ..Default::default()
+    };
+    am.set_from_json(jv)?;
     am.id = ActiveValue::Set(id);
     let txn = (&state.db).begin().await?;
     let model = am.update(&txn).await?;
@@ -167,10 +167,11 @@ pub async fn delete_post(
     Path(id): Path<i64>,
 ) -> HandlerResult<()> {
     let txn = (state.db).begin().await?;
+    post_taxonomy::Entity::delete_many()
+        .filter(post_taxonomy::Column::PostId.eq(id))
+        .exec(&txn)
+        .await?;
     post::Entity::delete_by_id(id).exec(&txn).await?;
-    post_taxonomy::update(&txn, id, vec![], TaxonomyType::Category).await?;
-    post_taxonomy::update(&txn, id, vec![], TaxonomyType::Tag).await?;
-    post_taxonomy::update(&txn, id, vec![], TaxonomyType::Series).await?;
     txn.commit().await?;
     Ok(axum::Json(ResponseBody::ok(())))
 }

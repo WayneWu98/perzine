@@ -85,12 +85,12 @@ pub async fn is_valid_taxonomy(
     ids: Vec<i32>,
     t_type: TaxonomyType,
 ) -> Result<bool, Box<dyn std::error::Error>> {
-    Ok(Entity::find()
-        .filter(Column::Id.is_in(ids))
-        .all(db)
-        .await?
-        .into_iter()
-        .all(|item| item.t_type.eq(&t_type)))
+    let len = ids.len();
+    let finded = Entity::find().filter(Column::Id.is_in(ids)).all(db).await?;
+    if finded.len() < len {
+        return Ok(false);
+    }
+    Ok(finded.into_iter().all(|item| item.t_type.eq(&t_type)))
 }
 
 pub struct ClassifiedTaxonomy {

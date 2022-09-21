@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
-use sea_orm::ActiveValue::{self, NotSet};
-use sea_orm::IntoActiveModel;
-use sea_orm::{entity::prelude::*, ConnectionTrait, IntoActiveValue};
+use once_cell::sync::Lazy;
+use sea_orm::{entity::prelude::*, ConnectionTrait, FromQueryResult, IntoActiveValue};
 use serde::{Deserialize, Serialize};
 use serde_enum_str::{Deserialize_enum_str, Serialize_enum_str};
 
@@ -19,11 +18,11 @@ pub struct Model {
     pub subtitle: Option<String>,
     #[serde(skip)]
     #[sea_orm(created_at)]
-    pub created: DateTime<Utc>,
+    pub created: Option<DateTime<Utc>>,
     #[sea_orm(updated_at)]
-    pub modified: DateTime<Utc>,
+    pub modified: Option<DateTime<Utc>>,
     #[sea_orm(created_at)]
-    pub published: DateTime<Utc>,
+    pub published: Option<DateTime<Utc>>,
     #[serde(skip_deserializing)]
     #[sea_orm(ignore)]
     pub categories: Option<Vec<taxonomy::Model>>,
@@ -34,14 +33,14 @@ pub struct Model {
     #[sea_orm(ignore)]
     pub series: Option<taxonomy::Model>,
     #[sea_orm(nullable)]
-    pub excerpts: String,
+    pub excerpts: Option<String>,
     #[sea_orm(nullable)]
-    pub content: serde_json::Value,
-    #[sea_orm(nullable)]
+    pub content: Option<serde_json::Value>,
+    #[sea_orm(nullable, default_value = Option::None)]
     pub route: Option<String>,
-    #[sea_orm]
-    pub is_page: bool,
-    pub status: PostStatus,
+    #[sea_orm(default_value = false)]
+    pub is_page: Option<bool>,
+    pub status: Option<PostStatus>,
     #[sea_orm(nullable)]
     pub extra: Option<serde_json::Value>,
 }
@@ -118,24 +117,29 @@ impl Related<super::comment::Entity> for Entity {
 
 impl ActiveModelBehavior for ActiveModel {}
 
-#[derive(Deserialize, Serialize)]
-pub struct NewPost {
-    pub title: String,
-    // pub subtitle: Option<String>,
-    pub modified: Option<DateTime<Utc>>,
-    // pub published: Option<DateTime<Utc>>,
-    // pub categories: Option<Vec<i32>>,
-    // pub tags: Option<i32>,
-    // pub series: Option<i32>,
-    // pub excerpts: Option<String>,
-    // pub content: Option<serde_json::Value>,
-    // pub is_page: Option<bool>,
-    // pub status: Option<PostStatus>,
-    // pub extra: Option<serde_json::Value>,
-}
+pub static VisitorPureColumns: Lazy<Vec<Column>> = Lazy::new(|| {
+    vec![
+        Column::Id,
+        Column::Title,
+        Column::Subtitle,
+        Column::Published,
+        Column::Excerpts,
+        Column::Extra,
+    ]
+});
 
-impl NewPost {
-    pub fn into_active_model(self) -> Result<ActiveModel, Box<dyn std::error::Error>> {
-        Ok(ActiveModel::from_json(serde_json::to_value(self)?)?)
-    }
-}
+pub static ManagerPureColumns: Lazy<Vec<Column>> = Lazy::new(|| {
+    vec![
+        Column::Id,
+        Column::Title,
+        Column::Subtitle,
+        Column::Created,
+        Column::Modified,
+        Column::Published,
+        Column::Excerpts,
+        Column::Route,
+        Column::IsPage,
+        Column::Status,
+        Column::Extra,
+    ]
+});

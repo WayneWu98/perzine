@@ -105,13 +105,15 @@ impl From<Box<dyn Error>> for AppError {
 
 impl From<sea_orm::error::DbErr> for AppError {
     fn from(err: sea_orm::error::DbErr) -> Self {
-        Self::from_err(Box::new(err), Some(ErrorCode::DBError), None)
+        let msg = err.to_string();
+        Self::from_err(Box::new(err), Some(ErrorCode::DBError), Some(msg))
     }
 }
 
 impl From<serde_json::error::Error> for AppError {
     fn from(err: serde_json::error::Error) -> Self {
-        Self::from_err(Box::new(err), Some(ErrorCode::DBError), None)
+        let msg = err.to_string();
+        Self::from_err(Box::new(err), Some(ErrorCode::DBError), Some(msg))
     }
 }
 
@@ -119,11 +121,10 @@ impl<T: Error + 'static> From<sea_orm::TransactionError<T>> for AppError {
     fn from(err: TransactionError<T>) -> Self {
         match err {
             TransactionError::Connection(err) => Self::from(err),
-            TransactionError::Transaction(err) => Self::from_err(
-                Box::new(err),
-                Some(ErrorCode::UnkownError),
-                Some("unkown error".to_owned()),
-            ),
+            TransactionError::Transaction(err) => {
+                let msg = err.to_string();
+                Self::from_err(Box::new(err), Some(ErrorCode::UnkownError), Some(msg))
+            }
         }
     }
 }
@@ -131,10 +132,12 @@ impl<T: Error + 'static> From<sea_orm::TransactionError<T>> for AppError {
 impl axum::response::IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let (http_code, msg) = self.code.res();
+
         let msg = match self.msg {
             Some(v) => v,
             None => msg,
         };
+
         if let Some(err) = self.source {
             println!("error fired: {:#?}", err);
         }

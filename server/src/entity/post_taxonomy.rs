@@ -51,13 +51,15 @@ pub async fn update(
     pid: i64,
     tids: Vec<i32>,
     t_type: taxonomy::TaxonomyType,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), DbErr> {
     if tids.len() < 1 {
         return Ok(());
     }
-    let is_valid = taxonomy::is_valid_taxonomy(db, tids.clone(), t_type.clone()).await?;
+    let is_valid = taxonomy::is_valid_taxonomy(db, tids.clone(), t_type.clone())
+        .await
+        .map_err(|err| DbErr::Query(err.to_string()))?;
     if !is_valid {
-        return Err(Box::new(DbErr::Custom("invalid taxonomy".to_owned())));
+        return Err(DbErr::Custom("invalid taxonomy".to_owned()));
     }
     Entity::delete_many()
         .filter(

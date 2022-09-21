@@ -1,18 +1,12 @@
 use chrono::Utc;
 use sea_orm::{
-    sea_query::IntoCondition, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait,
-    QueryFilter, QuerySelect,
+    sea_query::IntoCondition, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QuerySelect,
 };
 use serde::Deserialize;
 use serde_enum_str::Deserialize_enum_str;
 
-use crate::{
-    entity::{
-        post,
-        taxonomy::{self, ClassifiedTaxonomy, ClassifyTaxonomy},
-    },
-    utils::SqlOrder,
-};
+use crate::{entity::post, utils::SqlOrder};
 
 #[derive(Deserialize)]
 pub struct WithExtra {
@@ -152,25 +146,5 @@ pub async fn get_post_by_filter(
         .filter(cond)
         .one(db)
         .await?;
-    Ok(model)
-}
-
-pub async fn fill_post(
-    db: &DatabaseConnection,
-    mut model: post::Model,
-) -> Result<post::Model, Box<dyn std::error::Error>> {
-    let ClassifiedTaxonomy {
-        categories,
-        tags,
-        mut series,
-    } = model
-        .find_related(taxonomy::Entity)
-        .all(db)
-        .await?
-        .classify();
-    model.categories = Some(categories);
-    model.tags = Some(tags);
-    model.series = series.pop();
-
     Ok(model)
 }
