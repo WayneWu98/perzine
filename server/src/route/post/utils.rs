@@ -8,11 +8,6 @@ use serde_enum_str::Deserialize_enum_str;
 
 use crate::{entity::post, utils::SqlOrder};
 
-#[derive(Deserialize)]
-pub struct WithExtra {
-    pub extra: Option<String>,
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Filter {

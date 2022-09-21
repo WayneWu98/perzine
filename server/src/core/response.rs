@@ -4,7 +4,10 @@ use serde::Serialize;
 use super::error::ErrorCode;
 
 #[derive(Serialize)]
-pub struct ResponseBody<T> {
+pub struct ResponseBody<T>
+where
+    T: Serialize,
+{
     data: T,
     code: ErrorCode,
     msg: String,
@@ -22,7 +25,7 @@ impl<T> PaginationData<T> {
     }
 }
 
-impl<T> ResponseBody<T> {
+impl<T: Serialize> ResponseBody<T> {
     pub fn new(data: T, code: ErrorCode, msg: String) -> Self {
         Self { data, code, msg }
     }
@@ -31,7 +34,7 @@ impl<T> ResponseBody<T> {
     }
 }
 
-impl<T> ResponseBody<PaginationData<T>> {
+impl<T: Serialize> ResponseBody<PaginationData<T>> {
     pub fn with_pagination_data(data: T, total: usize) -> Self {
         Self::ok(PaginationData::new(data, total))
     }

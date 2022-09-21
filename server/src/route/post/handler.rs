@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
-use axum::{response::IntoResponse, Extension};
+use axum::Extension;
 
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Related, TransactionTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, ModelTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{
         error::{AppError, ErrorCode},
-        response::{HandlerResult, PaginationData, ResponseBody},
+        response::{HandlerResult, ResponseBody},
         AppState,
     },
     entity::{
@@ -22,24 +22,27 @@ use crate::{
     extract::{Claims, JsonPayload, Pagination, Path, Query, WeekClaims},
 };
 
-use super::utils::{gen_common_selec, Filter, WithExtra};
+use crate::dto::post::PostWithTaxonomy;
+
+use super::utils::Filter;
 
 pub async fn get_posts(
     w_claims: WeekClaims,
     Extension(state): Extension<Arc<AppState>>,
     Pagination { page, per }: Pagination,
     Query(filter): Query<Filter>,
-    Query(WithExtra { extra }): Query<WithExtra>,
-) -> HandlerResult<PaginationData<Vec<post::Model>>> {
-    let paginator = gen_common_selec(w_claims.is_authed(), extra.is_some())
+) -> HandlerResult<impl Serialize> {
+    let paginator = post::Entity::find()
         .filter(filter.condition(w_claims.is_authed()))
         .order_by(filter.order_by(w_claims.is_authed()), filter.order())
         .paginate(&state.db, per);
+
     let total = paginator.num_items().await?;
     let items = paginator.fetch_page(page).await?;
     let mut formatted = Vec::with_capacity(items.len());
     for item in items.into_iter() {
-        formatted.push(item.with_taxonomy(&state.db).await?);
+        let taxonomies = item.find_related(taxonomy::Entity).all(&state.db).await?;
+        formatted.push(PostWithTaxonomy::from_unclassified(item, taxonomies));
     }
     Ok(axum::Json(ResponseBody::with_pagination_data(
         formatted, total,
@@ -50,41 +53,52 @@ pub async fn get_post_by_id(
     w_claims: WeekClaims,
     Extension(state): Extension<Arc<AppState>>,
     Path(id): Path<i64>,
-    Query(WithExtra { extra }): Query<WithExtra>,
 ) -> HandlerResult<impl Serialize> {
-    let model = super::utils::get_post_by_filter(
-        &state.db,
-        post::Column::Id.eq(id),
-        w_claims.is_authed(),
-        extra.is_some(),
-    )
-    .await?;
-    match model {
-        None => return Err(AppError::from_code(ErrorCode::NotFound, None)),
-        Some(v) => Ok(axum::Json(ResponseBody::ok(
-            v.with_taxonomy(&state.db).await?,
-        ))),
+    let model = post::Entity::find()
+        .filter(post::Column::Id.eq(id))
+        .one(&state.db)
+        .await?;
+    if let Some(model) = model {
+        let taxonomies = model.find_related(taxonomy::Entity).all(&state.db).await?;
+        let jv = serde_json::to_value(model)?;
+        if w_claims.is_authed() {
+            return Ok(axum::Json(ResponseBody::ok(
+                PostWithTaxonomy::from_unclassified(
+                    serde_json::from_value::<post::VisitorSimplePost>(jv.clone())?,
+                    taxonomies,
+                ),
+            )));
+        }
+        return Ok(axum::Json(ResponseBody::ok(
+            PostWithTaxonomy::from_unclassified(
+                serde_json::from_value::<post::ManagerSimplePost>(jv.clone())?,
+                taxonomies,
+            ),
+        )));
     }
+    Err(AppError::from_code(ErrorCode::NotFound, None))
 }
 
 pub async fn get_post_by_route(
     w_claims: WeekClaims,
     Extension(state): Extension<Arc<AppState>>,
     Path(route): Path<String>,
-    Query(WithExtra { extra }): Query<WithExtra>,
-) -> HandlerResult<post::Model> {
+) -> HandlerResult<impl Serialize> {
     let model = super::utils::get_post_by_filter(
         &state.db,
         post::Column::Route.eq(route),
         w_claims.is_authed(),
-        extra.is_some(),
+        true,
     )
     .await?;
     match model {
         None => return Err(AppError::from_code(ErrorCode::NotFound, None)),
-        Some(v) => Ok(axum::Json(ResponseBody::ok(
-            v.with_taxonomy(&state.db).await?,
-        ))),
+        Some(v) => {
+            let taxonomies = v.find_related(taxonomy::Entity).all(&state.db).await?;
+            Ok(axum::Json(ResponseBody::ok(
+                PostWithTaxonomy::from_unclassified(v, taxonomies),
+            )))
+        }
     }
 }
 
@@ -105,7 +119,7 @@ pub async fn create_post(
     _claims: Claims,
     Extension(state): Extension<Arc<AppState>>,
     JsonPayload(jv): JsonPayload<serde_json::Value>,
-) -> HandlerResult<post::Model> {
+) -> HandlerResult<impl Serialize> {
     let CreateExtraPayload {
         categories,
         tags,
@@ -122,9 +136,10 @@ pub async fn create_post(
         post_taxonomy::update(&txn, model.id, vec![tid], TaxonomyType::Series).await?;
     }
     txn.commit().await?;
+    let txs = model.find_related(taxonomy::Entity).all(&state.db).await?;
 
     Ok(axum::Json(ResponseBody::ok(
-        model.with_taxonomy(&state.db).await?,
+        PostWithTaxonomy::from_unclassified(model, txs),
     )))
 }
 
@@ -133,7 +148,7 @@ pub async fn update_post(
     Extension(state): Extension<Arc<AppState>>,
     Path(id): Path<i64>,
     JsonPayload(jv): JsonPayload<serde_json::Value>,
-) -> HandlerResult<post::Model> {
+) -> HandlerResult<impl Serialize> {
     let UpdateExtraPayload {
         categories,
         tags,
@@ -156,8 +171,10 @@ pub async fn update_post(
         post_taxonomy::update(&txn, id, vec![tid], taxonomy::TaxonomyType::Series).await?;
     }
     txn.commit().await?;
+    let txs = model.find_related(taxonomy::Entity).all(&state.db).await?;
+
     Ok(axum::Json(ResponseBody::ok(
-        model.with_taxonomy(&state.db).await?,
+        PostWithTaxonomy::from_unclassified(model, txs),
     )))
 }
 

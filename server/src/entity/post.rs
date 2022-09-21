@@ -1,10 +1,9 @@
 use chrono::{DateTime, Utc};
-use once_cell::sync::Lazy;
-use sea_orm::{entity::prelude::*, ConnectionTrait, FromQueryResult, IntoActiveValue};
-use serde::{Deserialize, Serialize};
+use sea_orm::{entity::prelude::*, IntoActiveValue};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_enum_str::{Deserialize_enum_str, Serialize_enum_str};
 
-use super::taxonomy::{self, ClassifiedTaxonomy, ClassifyTaxonomy};
+use super::taxonomy::{self};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,27 +42,6 @@ pub struct Model {
     pub status: Option<PostStatus>,
     #[sea_orm(nullable)]
     pub extra: Option<serde_json::Value>,
-}
-
-impl Model {
-    pub async fn with_taxonomy(
-        mut self,
-        db: &impl ConnectionTrait,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let ClassifiedTaxonomy {
-            categories,
-            tags,
-            mut series,
-        } = self
-            .find_related(taxonomy::Entity)
-            .all(db)
-            .await?
-            .classify();
-        self.categories = Some(categories);
-        self.tags = Some(tags);
-        self.series = series.pop();
-        Ok(self)
-    }
 }
 
 #[derive(
@@ -117,29 +95,27 @@ impl Related<super::comment::Entity> for Entity {
 
 impl ActiveModelBehavior for ActiveModel {}
 
-pub static VisitorPureColumns: Lazy<Vec<Column>> = Lazy::new(|| {
-    vec![
-        Column::Id,
-        Column::Title,
-        Column::Subtitle,
-        Column::Published,
-        Column::Excerpts,
-        Column::Extra,
-    ]
-});
+#[derive(Clone, Debug, Serialize, DeriveModel, Deserialize)]
+pub struct VisitorSimplePost {
+    pub id: i64,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub published: DateTime<Utc>,
+    pub excerpts: Option<String>,
+    pub extra: Option<serde_json::Value>,
+}
 
-pub static ManagerPureColumns: Lazy<Vec<Column>> = Lazy::new(|| {
-    vec![
-        Column::Id,
-        Column::Title,
-        Column::Subtitle,
-        Column::Created,
-        Column::Modified,
-        Column::Published,
-        Column::Excerpts,
-        Column::Route,
-        Column::IsPage,
-        Column::Status,
-        Column::Extra,
-    ]
-});
+#[derive(Clone, Debug, Serialize, DeriveModel, Deserialize)]
+pub struct ManagerSimplePost {
+    pub id: i64,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub created: DateTime<Utc>,
+    pub modified: DateTime<Utc>,
+    pub published: DateTime<Utc>,
+    pub excerpts: Option<String>,
+    pub route: Option<String>,
+    pub is_page: bool,
+    pub status: PostStatus,
+    pub extra: Option<serde_json::Value>,
+}
