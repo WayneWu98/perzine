@@ -10,16 +10,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{
-        error::{AppError, ErrorCode},
-        response::{HandlerResult, ResponseBody},
+        error::ErrorCode,
+        response::{HandlerResult, PaginationData},
         AppState,
     },
+    e_code_err,
     entity::{
         post::{self},
         post_taxonomy,
         taxonomy::{self, TaxonomyType},
     },
     extract::{Claims, JsonPayload, Pagination, Path, Query, WeekClaims},
+    res_ok,
 };
 
 use crate::dto::post::PostWithTaxonomy;
@@ -40,13 +42,14 @@ pub async fn get_posts(
     let total = paginator.num_items().await?;
     let items = paginator.fetch_page(page).await?;
     let mut formatted = Vec::with_capacity(items.len());
-    for item in items.into_iter() {
+    for mut item in items.into_iter() {
+        item.is_authed = w_claims.is_authed();
+        item.fulled = false;
         let taxonomies = item.find_related(taxonomy::Entity).all(&state.db).await?;
         formatted.push(PostWithTaxonomy::from_unclassified(item, taxonomies));
     }
-    Ok(axum::Json(ResponseBody::with_pagination_data(
-        formatted, total,
-    )))
+
+    res_ok!(PaginationData::new(formatted, total))
 }
 
 pub async fn get_post_by_id(
@@ -58,25 +61,12 @@ pub async fn get_post_by_id(
         .filter(post::Column::Id.eq(id))
         .one(&state.db)
         .await?;
-    if let Some(model) = model {
+    if let Some(mut model) = model {
+        model.is_authed = w_claims.is_authed();
         let taxonomies = model.find_related(taxonomy::Entity).all(&state.db).await?;
-        let jv = serde_json::to_value(model)?;
-        if w_claims.is_authed() {
-            return Ok(axum::Json(ResponseBody::ok(
-                PostWithTaxonomy::from_unclassified(
-                    serde_json::from_value::<post::VisitorSimplePost>(jv.clone())?,
-                    taxonomies,
-                ),
-            )));
-        }
-        return Ok(axum::Json(ResponseBody::ok(
-            PostWithTaxonomy::from_unclassified(
-                serde_json::from_value::<post::ManagerSimplePost>(jv.clone())?,
-                taxonomies,
-            ),
-        )));
+        return res_ok!(PostWithTaxonomy::from_unclassified(model, taxonomies));
     }
-    Err(AppError::from_code(ErrorCode::NotFound, None))
+    e_code_err!(ErrorCode::NotFound)
 }
 
 pub async fn get_post_by_route(
@@ -84,33 +74,23 @@ pub async fn get_post_by_route(
     Extension(state): Extension<Arc<AppState>>,
     Path(route): Path<String>,
 ) -> HandlerResult<impl Serialize> {
-    let model = super::utils::get_post_by_filter(
-        &state.db,
-        post::Column::Route.eq(route),
-        w_claims.is_authed(),
-        true,
-    )
-    .await?;
+    let model = post::Entity::find()
+        .filter(post::Column::Route.eq(route))
+        .one(&state.db)
+        .await?;
     match model {
-        None => return Err(AppError::from_code(ErrorCode::NotFound, None)),
-        Some(v) => {
-            let taxonomies = v.find_related(taxonomy::Entity).all(&state.db).await?;
-            Ok(axum::Json(ResponseBody::ok(
-                PostWithTaxonomy::from_unclassified(v, taxonomies),
-            )))
+        None => return e_code_err!(ErrorCode::NotFound),
+        Some(mut model) => {
+            model.is_authed = w_claims.is_authed();
+            let taxonomies = model.find_related(taxonomy::Entity).all(&state.db).await?;
+            res_ok!(PostWithTaxonomy::from_unclassified(model, taxonomies))
         }
     }
 }
 
 #[derive(Deserialize)]
-pub struct UpdateExtraPayload {
+pub struct ExtraPayload {
     pub categories: Option<Vec<i32>>,
-    pub tags: Option<Vec<i32>>,
-    pub series: Option<i32>,
-}
-#[derive(Deserialize)]
-pub struct CreateExtraPayload {
-    pub categories: Vec<i32>,
     pub tags: Option<Vec<i32>>,
     pub series: Option<i32>,
 }
@@ -120,15 +100,24 @@ pub async fn create_post(
     Extension(state): Extension<Arc<AppState>>,
     JsonPayload(jv): JsonPayload<serde_json::Value>,
 ) -> HandlerResult<impl Serialize> {
-    let CreateExtraPayload {
+    let ExtraPayload {
         categories,
         tags,
         series,
     } = serde_json::from_value(jv.clone())?;
+
     let am = post::ActiveModel::from_json(jv.clone())?;
     let txn = state.db.begin().await?;
     let model = am.insert(&state.db).await?;
-    post_taxonomy::update(&txn, model.id, categories, TaxonomyType::Category).await?;
+    if categories.is_none() {
+        return e_code_err!(
+            ErrorCode::InvalidRequest,
+            Some("categories is required.".to_owned())
+        );
+    }
+    if let Some(tids) = categories {
+        post_taxonomy::update(&txn, model.id, tids, TaxonomyType::Category).await?
+    }
     if let Some(tids) = tags {
         post_taxonomy::update(&txn, model.id, tids, TaxonomyType::Tag).await?;
     }
@@ -136,11 +125,10 @@ pub async fn create_post(
         post_taxonomy::update(&txn, model.id, vec![tid], TaxonomyType::Series).await?;
     }
     txn.commit().await?;
+
     let txs = model.find_related(taxonomy::Entity).all(&state.db).await?;
 
-    Ok(axum::Json(ResponseBody::ok(
-        PostWithTaxonomy::from_unclassified(model, txs),
-    )))
+    res_ok!(PostWithTaxonomy::from_unclassified(model, txs))
 }
 
 pub async fn update_post(
@@ -149,7 +137,7 @@ pub async fn update_post(
     Path(id): Path<i64>,
     JsonPayload(jv): JsonPayload<serde_json::Value>,
 ) -> HandlerResult<impl Serialize> {
-    let UpdateExtraPayload {
+    let ExtraPayload {
         categories,
         tags,
         series,
@@ -172,10 +160,7 @@ pub async fn update_post(
     }
     txn.commit().await?;
     let txs = model.find_related(taxonomy::Entity).all(&state.db).await?;
-
-    Ok(axum::Json(ResponseBody::ok(
-        PostWithTaxonomy::from_unclassified(model, txs),
-    )))
+    res_ok!(PostWithTaxonomy::from_unclassified(model, txs))
 }
 
 pub async fn delete_post(
@@ -190,5 +175,5 @@ pub async fn delete_post(
         .await?;
     post::Entity::delete_by_id(id).exec(&txn).await?;
     txn.commit().await?;
-    Ok(axum::Json(ResponseBody::ok(())))
+    res_ok!(())
 }

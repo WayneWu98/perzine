@@ -1,11 +1,9 @@
 use chrono::{DateTime, Utc};
 use sea_orm::{entity::prelude::*, IntoActiveValue};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use serde_enum_str::{Deserialize_enum_str, Serialize_enum_str};
 
-use super::taxonomy::{self};
-
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[sea_orm(table_name = "posts")]
 pub struct Model {
@@ -22,26 +20,21 @@ pub struct Model {
     pub modified: Option<DateTime<Utc>>,
     #[sea_orm(created_at)]
     pub published: Option<DateTime<Utc>>,
-    #[serde(skip_deserializing)]
-    #[sea_orm(ignore)]
-    pub categories: Option<Vec<taxonomy::Model>>,
-    #[serde(skip_deserializing)]
-    #[sea_orm(ignore)]
-    pub tags: Option<Vec<taxonomy::Model>>,
-    #[serde(skip_deserializing)]
-    #[sea_orm(ignore)]
-    pub series: Option<taxonomy::Model>,
     #[sea_orm(nullable)]
     pub excerpts: Option<String>,
     #[sea_orm(nullable)]
     pub content: Option<serde_json::Value>,
-    #[sea_orm(nullable, default_value = Option::None)]
+    #[sea_orm(nullable, indexed, default_value = Option::None)]
     pub route: Option<String>,
     #[sea_orm(default_value = false)]
     pub is_page: Option<bool>,
     pub status: Option<PostStatus>,
     #[sea_orm(nullable)]
     pub extra: Option<serde_json::Value>,
+    #[sea_orm(ignore)]
+    pub is_authed: bool,
+    #[sea_orm(ignore)]
+    pub fulled: bool,
 }
 
 #[derive(
@@ -95,27 +88,28 @@ impl Related<super::comment::Entity> for Entity {
 
 impl ActiveModelBehavior for ActiveModel {}
 
-#[derive(Clone, Debug, Serialize, DeriveModel, Deserialize)]
-pub struct VisitorSimplePost {
-    pub id: i64,
-    pub title: String,
-    pub subtitle: Option<String>,
-    pub published: DateTime<Utc>,
-    pub excerpts: Option<String>,
-    pub extra: Option<serde_json::Value>,
-}
-
-#[derive(Clone, Debug, Serialize, DeriveModel, Deserialize)]
-pub struct ManagerSimplePost {
-    pub id: i64,
-    pub title: String,
-    pub subtitle: Option<String>,
-    pub created: DateTime<Utc>,
-    pub modified: DateTime<Utc>,
-    pub published: DateTime<Utc>,
-    pub excerpts: Option<String>,
-    pub route: Option<String>,
-    pub is_page: bool,
-    pub status: PostStatus,
-    pub extra: Option<serde_json::Value>,
+impl Serialize for Model {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("Model", 12)?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("title", &self.title)?;
+        state.serialize_field("subtitle", &self.subtitle)?;
+        state.serialize_field("published", &self.published)?;
+        state.serialize_field("excerpts", &self.excerpts)?;
+        state.serialize_field("extra", &self.extra)?;
+        if self.fulled {
+            state.serialize_field("content", &self.content)?;
+        }
+        if self.is_authed {
+            state.serialize_field("created", &self.created)?;
+            state.serialize_field("modified", &self.modified)?;
+            state.serialize_field("route", &self.route)?;
+            state.serialize_field("isPage", &self.is_page)?;
+            state.serialize_field("status", &self.status)?;
+        }
+        state.end()
+    }
 }

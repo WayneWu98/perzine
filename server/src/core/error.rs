@@ -71,7 +71,7 @@ impl AppError {
         }
     }
 
-    pub fn from_str(msg: String, code: Option<ErrorCode>) -> Self {
+    pub fn from_string(msg: String, code: Option<ErrorCode>) -> Self {
         Self {
             msg: Some(msg),
             source: None,
@@ -143,4 +143,58 @@ impl axum::response::IntoResponse for AppError {
         }
         (http_code, Json(ResponseBody::error(self.code, msg))).into_response()
     }
+}
+
+#[macro_export]
+macro_rules! e {
+    ($err: expr) => {
+        err!($err, None, None)
+    };
+    ($err: expr, $code: expr) => {
+        err!($err, $code, None)
+    };
+    ($err: expr, $code: expr, $msg: expr) => {
+        crate::core::error::AppError::from_err($err, $code, $msg)
+    };
+}
+
+#[macro_export]
+macro_rules! e_err {
+    ($($attr: expr), *) => {
+        Err(err!($($attr), *))
+    };
+}
+
+#[macro_export]
+macro_rules! e_string {
+    ($msg: expr) => {
+        err_str!($msg, None)
+    };
+    ($msg: expr, $code: expr) => {
+        crate::core::error::AppError::from_string($msg, $code)
+    };
+}
+
+#[macro_export]
+macro_rules! e_string_err {
+    ($($attr: expr), *) => {
+        Err(err_string!($($attr), *))
+    };
+}
+
+#[macro_export]
+macro_rules! e_code {
+    ($code: expr) => {
+        crate::e_code!($code, None)
+    };
+    ($code: expr, $msg: expr) => {
+        crate::core::error::AppError::from_code($code, $msg)
+    };
+}
+
+#[macro_export]
+macro_rules! e_code_err {
+    ($($attr: expr), *) => {
+        Err(crate::e_code!($($attr), *))
+    };
 }

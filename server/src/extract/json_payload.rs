@@ -5,7 +5,10 @@ use axum::{
 };
 use serde::de::DeserializeOwned;
 
-use crate::core::error::{AppError, ErrorCode};
+use crate::{
+    core::error::{AppError, ErrorCode},
+    e_code,
+};
 
 pub struct JsonPayload<T>(pub T);
 
@@ -23,7 +26,7 @@ where
         // let body = req.;
         let payload = axum::Json::<T>::from_request(req).await.map_err(|err| {
             println!("{:?}", err);
-            AppError::from_code(ErrorCode::InvalidRequest, None)
+            e_code!(ErrorCode::InvalidRequest)
         })?;
         Ok(Self(payload.0))
     }

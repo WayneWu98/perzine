@@ -1,8 +1,5 @@
 use chrono::Utc;
-use sea_orm::{
-    sea_query::IntoCondition, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QuerySelect,
-};
+use sea_orm::ColumnTrait;
 use serde::Deserialize;
 use serde_enum_str::Deserialize_enum_str;
 
@@ -103,43 +100,4 @@ impl Default for OrderKey {
     fn default() -> Self {
         Self::Published
     }
-}
-
-pub fn gen_common_selec(is_authed: bool, extra: bool) -> sea_orm::Select<post::Entity> {
-    let mut selc = post::Entity::find()
-        .select_only()
-        .column(post::Column::Id)
-        .column(post::Column::Title)
-        .column(post::Column::Subtitle)
-        .column(post::Column::Modified)
-        .column(post::Column::Published)
-        .column(post::Column::Excerpts);
-    if extra {
-        selc = selc.column(post::Column::Extra);
-    }
-    if is_authed {
-        selc = selc
-            .column(post::Column::Created)
-            .column(post::Column::Status)
-            .column(post::Column::Route);
-    }
-
-    selc
-}
-
-pub fn gen_full_selec(is_authed: bool, extra: bool) -> sea_orm::Select<post::Entity> {
-    gen_common_selec(is_authed, extra).column(post::Column::Content)
-}
-
-pub async fn get_post_by_filter(
-    db: &DatabaseConnection,
-    cond: impl IntoCondition,
-    is_authed: bool,
-    extra: bool,
-) -> Result<Option<post::Model>, Box<dyn std::error::Error>> {
-    let model = gen_full_selec(is_authed, extra)
-        .filter(cond)
-        .one(db)
-        .await?;
-    Ok(model)
 }

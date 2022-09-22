@@ -47,3 +47,27 @@ impl ResponseBody<()> {
 }
 
 pub type HandlerResult<T> = Result<Json<ResponseBody<T>>, crate::core::error::AppError>;
+
+#[macro_export]
+macro_rules! res_ok {
+    ($data: expr) => {
+        Ok(axum::Json(crate::core::response::ResponseBody::ok($data)))
+    };
+    ($data: expr, $type: ty) => {
+        match $type {
+            _ => res_ok!($data),
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! res {
+    ($data: expr) => {
+        axum::Json(crate::core::response::ResponseBody::ok($data))
+    };
+    ($data: expr, $type: ty) => {
+        match $type {
+            _ => res!($data),
+        }
+    };
+}

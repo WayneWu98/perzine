@@ -1,18 +1,15 @@
 use axum::routing::post;
-use axum::Json;
-use axum::{routing::get, Router};
+use axum::Router;
 use jsonwebtoken::{encode, Header};
 use serde::Deserialize;
 
-use crate::core::{
-    error::{AppError, ErrorCode},
-    response::{HandlerResult, ResponseBody},
-};
+use crate::core::{error::ErrorCode, response::HandlerResult};
 
 use crate::extract::{
     auth::{Claims, KEY},
     JsonPayload,
 };
+use crate::{e_code, res_ok};
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
@@ -31,17 +28,11 @@ pub async fn login(JsonPayload(_payload): JsonPayload<AuthPayload>) -> HandlerRe
     };
 
     let token = encode(&Header::default(), &claims, &KEY.encoding)
-        .map_err(|_| AppError::from_code(ErrorCode::TokenCreation, None))?;
+        .map_err(|_| e_code!(ErrorCode::TokenCreation))?;
 
-    Ok(Json(ResponseBody::ok(token)))
-}
-
-pub async fn protected(claims: Claims) -> HandlerResult<String> {
-    Ok(Json(ResponseBody::ok(format!("{:#?}", claims).to_string())))
+    res_ok!(token)
 }
 
 pub fn get_router() -> Router {
-    Router::new()
-        .route("/login", post(login))
-        .route("/protected", get(protected))
+    Router::new().route("/login", post(login))
 }

@@ -1,4 +1,4 @@
-use crate::core::error::ErrorCode;
+use crate::{core::error::ErrorCode, e_code, e_code_err};
 use axum::{
     async_trait,
     extract::{FromRequest, RequestParts, TypedHeader},
@@ -39,19 +39,19 @@ impl<T: Send + Sync> FromRequest<T> for Claims {
 
     async fn from_request(req: &mut RequestParts<T>) -> Result<Self, Self::Rejection> {
         if !req.headers().contains_key("Authorization") {
-            return Err(AppError::from_code(ErrorCode::Forbidden, None));
+            return e_code_err!(ErrorCode::Forbidden);
         }
         let TypedHeader(Authorization(bearer)) =
             TypedHeader::<Authorization<Bearer>>::from_request(req)
                 .await
-                .map_err(|_| AppError::from_code(ErrorCode::InvalidToken, None))?;
+                .map_err(|_| e_code!(ErrorCode::InvalidToken))?;
         let token_data =
             decode(bearer.token(), &KEY.decoding, &Validation::default()).map_err(|err| {
                 let code = match err.kind() {
                     ErrorKind::ExpiredSignature => ErrorCode::ExpiredToken,
                     _ => ErrorCode::InvalidToken,
                 };
-                AppError::from_code(code, None)
+                e_code!(code)
             })?;
         Ok(token_data.claims)
     }

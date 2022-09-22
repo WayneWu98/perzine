@@ -6,13 +6,10 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use crate::entity::site_option::{self, OptionLevel, Utils};
 use crate::extract::{Claims, JsonPayload, WeekClaims};
 use crate::{
-    core::{
-        error::{AppError, ErrorCode},
-        response::{HandlerResult, ResponseBody},
-        AppState,
-    },
+    core::{error::ErrorCode, response::HandlerResult, AppState},
     extract::Path,
 };
+use crate::{e_code_err, res_ok};
 
 pub async fn get_options(
     wc: WeekClaims,
@@ -24,7 +21,7 @@ pub async fn get_options(
     } else {
         opts.filter_public()
     };
-    Ok(axum::Json(ResponseBody::ok(filtered.to_map())))
+    res_ok!(filtered.to_map())
 }
 
 pub async fn get_option(
@@ -43,11 +40,11 @@ pub async fn get_option(
     match opt {
         Some(opt) => {
             if opt.is_protected() && !week_claims.is_authed() {
-                return Err(AppError::from_code(ErrorCode::NotFound, None));
+                return e_code_err!(ErrorCode::NotFound);
             }
-            Ok(axum::Json(ResponseBody::ok(opt.value)))
+            res_ok!(opt.value)
         }
-        None => Err(AppError::from_code(ErrorCode::NotFound, None)),
+        None => e_code_err!(ErrorCode::NotFound),
     }
 }
 
@@ -69,7 +66,5 @@ pub async fn update_options(
             updated.push(opt.update(&state.db).await?);
         }
     }
-    Ok(axum::Json(ResponseBody::ok(
-        updated.exclude_private().to_map(),
-    )))
+    res_ok!(updated.exclude_private().to_map())
 }

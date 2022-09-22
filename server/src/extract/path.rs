@@ -4,7 +4,10 @@ use axum::{
 };
 use serde::de::DeserializeOwned;
 
-use crate::core::error::{AppError, ErrorCode};
+use crate::{
+    core::error::{AppError, ErrorCode},
+    e_code,
+};
 
 pub struct Path<T>(pub T);
 
@@ -19,7 +22,7 @@ where
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         let payload = axum::extract::Path::<T>::from_request(req)
             .await
-            .map_err(|_| AppError::from_code(ErrorCode::InvalidRequest, None))?;
+            .map_err(|_| e_code!(ErrorCode::InvalidRequest))?;
         Ok(Self(payload.0))
     }
 }
