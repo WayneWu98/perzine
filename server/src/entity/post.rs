@@ -15,7 +15,7 @@ pub struct Model {
     pub subtitle: Option<String>,
     #[serde(skip)]
     #[sea_orm(created_at)]
-    pub created: Option<DateTime<Utc>>,
+    pub created: DateTime<Utc>,
     #[sea_orm(updated_at)]
     pub modified: Option<DateTime<Utc>>,
     #[sea_orm(created_at)]
@@ -24,15 +24,18 @@ pub struct Model {
     pub excerpts: Option<String>,
     #[sea_orm(nullable)]
     pub content: Option<serde_json::Value>,
-    #[sea_orm(nullable, indexed, default_value = Option::None)]
+    #[sea_orm(nullable, unique, indexed, default_value = Option::None)]
     pub route: Option<String>,
+    #[serde(rename(deserialize = "isPage"), alias = "isPage")]
     #[sea_orm(default_value = false)]
     pub is_page: Option<bool>,
     pub status: Option<PostStatus>,
     #[sea_orm(nullable)]
     pub extra: Option<serde_json::Value>,
+    #[serde(skip)]
     #[sea_orm(ignore)]
     pub is_authed: bool,
+    #[serde(skip_deserializing)]
     #[sea_orm(ignore)]
     pub fulled: bool,
 }

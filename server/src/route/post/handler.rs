@@ -105,8 +105,8 @@ pub async fn create_post(
         tags,
         series,
     } = serde_json::from_value(jv.clone())?;
-
     let am = post::ActiveModel::from_json(jv.clone())?;
+    println!("{:#?}", am.is_page);
     let txn = state.db.begin().await?;
     let model = am.insert(&state.db).await?;
     if categories.is_none() {
