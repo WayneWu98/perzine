@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use axum::Extension;
 
+use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, ModelTrait, PaginatorTrait,
     QueryFilter, QueryOrder, TransactionTrait,
@@ -14,7 +15,7 @@ use crate::{
         response::{HandlerResult, PaginationData},
         AppState,
     },
-    e_code_err,
+    dto, e_code_err,
     entity::{
         post::{self},
         post_taxonomy,
@@ -42,10 +43,10 @@ pub async fn get_posts(
     let total = paginator.num_items().await?;
     let items = paginator.fetch_page(page).await?;
     let mut formatted = Vec::with_capacity(items.len());
-    for mut item in items.into_iter() {
-        item.is_authed = w_claims.is_authed();
-        item.fulled = false;
+    for item in items.into_iter() {
         let taxonomies = item.find_related(taxonomy::Entity).all(&state.db).await?;
+        let mut item = dto::post::SimplePost::from(item);
+        item.is_authed = w_claims.is_authed();
         formatted.push(PostWithTaxonomy::from_unclassified(item, taxonomies));
     }
 
@@ -57,14 +58,15 @@ pub async fn get_post_by_id(
     Extension(state): Extension<Arc<AppState>>,
     Path(id): Path<i64>,
 ) -> HandlerResult<impl Serialize> {
-    let model = post::Entity::find()
+    let item = post::Entity::find()
         .filter(post::Column::Id.eq(id))
         .one(&state.db)
         .await?;
-    if let Some(mut model) = model {
-        model.is_authed = w_claims.is_authed();
-        let taxonomies = model.find_related(taxonomy::Entity).all(&state.db).await?;
-        return res_ok!(PostWithTaxonomy::from_unclassified(model, taxonomies));
+    if let Some(item) = item {
+        let taxonomies = item.find_related(taxonomy::Entity).all(&state.db).await?;
+        let mut item = dto::post::FulledPost::from(item);
+        item.is_authed = w_claims.is_authed();
+        return res_ok!(PostWithTaxonomy::from_unclassified(item, taxonomies));
     }
     e_code_err!(ErrorCode::NotFound)
 }
@@ -74,16 +76,17 @@ pub async fn get_post_by_route(
     Extension(state): Extension<Arc<AppState>>,
     Path(route): Path<String>,
 ) -> HandlerResult<impl Serialize> {
-    let model = post::Entity::find()
+    let item = post::Entity::find()
         .filter(post::Column::Route.eq(route))
         .one(&state.db)
         .await?;
-    match model {
+    match item {
         None => return e_code_err!(ErrorCode::NotFound),
-        Some(mut model) => {
-            model.is_authed = w_claims.is_authed();
-            let taxonomies = model.find_related(taxonomy::Entity).all(&state.db).await?;
-            res_ok!(PostWithTaxonomy::from_unclassified(model, taxonomies))
+        Some(item) => {
+            let taxonomies = item.find_related(taxonomy::Entity).all(&state.db).await?;
+            let mut item = dto::post::FulledPost::from(item);
+            item.is_authed = w_claims.is_authed();
+            res_ok!(PostWithTaxonomy::from_unclassified(item, taxonomies))
         }
     }
 }
@@ -105,8 +108,9 @@ pub async fn create_post(
         tags,
         series,
     } = serde_json::from_value(jv.clone())?;
+    let p = serde_json::from_value::<post::Model>(jv.clone())?;
+    println!("{:#?}", p);
     let am = post::ActiveModel::from_json(jv.clone())?;
-    println!("{:#?}", am.is_page);
     let txn = state.db.begin().await?;
     let model = am.insert(&state.db).await?;
     if categories.is_none() {
@@ -127,8 +131,10 @@ pub async fn create_post(
     txn.commit().await?;
 
     let txs = model.find_related(taxonomy::Entity).all(&state.db).await?;
+    let mut item = dto::post::FulledPost::from(model);
+    item.is_authed = true;
 
-    res_ok!(PostWithTaxonomy::from_unclassified(model, txs))
+    res_ok!(PostWithTaxonomy::from_unclassified(item, txs))
 }
 
 pub async fn update_post(
@@ -142,10 +148,8 @@ pub async fn update_post(
         tags,
         series,
     } = serde_json::from_value(jv.clone())?;
-    let mut am = post::ActiveModel {
-        ..Default::default()
-    };
-    am.set_from_json(jv)?;
+    let mut am = post::ActiveModel::from_json(jv.clone())?;
+    am.modified = ActiveValue::Set(Some(Utc::now()));
     am.id = ActiveValue::Set(id);
     let txn = (&state.db).begin().await?;
     let model = am.update(&txn).await?;
@@ -160,7 +164,9 @@ pub async fn update_post(
     }
     txn.commit().await?;
     let txs = model.find_related(taxonomy::Entity).all(&state.db).await?;
-    res_ok!(PostWithTaxonomy::from_unclassified(model, txs))
+    let mut item = dto::post::FulledPost::from(model);
+    item.is_authed = true;
+    res_ok!(PostWithTaxonomy::from_unclassified(item, txs))
 }
 
 pub async fn delete_post(

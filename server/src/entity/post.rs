@@ -1,11 +1,11 @@
 use chrono::{DateTime, Utc};
 use sea_orm::{entity::prelude::*, IntoActiveValue};
-use serde::{ser::SerializeStruct, Deserialize, Serialize};
+use serde::Deserialize;
 use serde_enum_str::{Deserialize_enum_str, Serialize_enum_str};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Deserialize)]
-#[serde(rename_all = "camelCase")]
 #[sea_orm(table_name = "posts")]
+#[serde(rename_all = "camelCase")]
 pub struct Model {
     #[serde(skip_deserializing)]
     #[sea_orm(primary_key)]
@@ -14,11 +14,8 @@ pub struct Model {
     #[sea_orm(nullable)]
     pub subtitle: Option<String>,
     #[serde(skip)]
-    #[sea_orm(created_at)]
-    pub created: DateTime<Utc>,
-    #[sea_orm(updated_at)]
+    pub created: Option<DateTime<Utc>>,
     pub modified: Option<DateTime<Utc>>,
-    #[sea_orm(created_at)]
     pub published: Option<DateTime<Utc>>,
     #[sea_orm(nullable)]
     pub excerpts: Option<String>,
@@ -26,18 +23,11 @@ pub struct Model {
     pub content: Option<serde_json::Value>,
     #[sea_orm(nullable, unique, indexed, default_value = Option::None)]
     pub route: Option<String>,
-    #[serde(rename(deserialize = "isPage"), alias = "isPage")]
     #[sea_orm(default_value = false)]
     pub is_page: Option<bool>,
     pub status: Option<PostStatus>,
     #[sea_orm(nullable)]
     pub extra: Option<serde_json::Value>,
-    #[serde(skip)]
-    #[sea_orm(ignore)]
-    pub is_authed: bool,
-    #[serde(skip_deserializing)]
-    #[sea_orm(ignore)]
-    pub fulled: bool,
 }
 
 #[derive(
@@ -90,29 +80,3 @@ impl Related<super::comment::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
-
-impl Serialize for Model {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut state = serializer.serialize_struct("Model", 12)?;
-        state.serialize_field("id", &self.id)?;
-        state.serialize_field("title", &self.title)?;
-        state.serialize_field("subtitle", &self.subtitle)?;
-        state.serialize_field("published", &self.published)?;
-        state.serialize_field("excerpts", &self.excerpts)?;
-        state.serialize_field("extra", &self.extra)?;
-        if self.fulled {
-            state.serialize_field("content", &self.content)?;
-        }
-        if self.is_authed {
-            state.serialize_field("created", &self.created)?;
-            state.serialize_field("modified", &self.modified)?;
-            state.serialize_field("route", &self.route)?;
-            state.serialize_field("isPage", &self.is_page)?;
-            state.serialize_field("status", &self.status)?;
-        }
-        state.end()
-    }
-}
