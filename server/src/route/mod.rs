@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod comment;
 pub mod option;
 pub mod post;
 pub mod taxonomy;
@@ -12,9 +13,9 @@ pub fn init(state: AppState) -> Router {
     Router::new()
         .nest("/", auth::get_router())
         .nest("/", taxonomy::get_router())
-        .nest("/", post::get_router())
+        .nest("/posts", post::get_router())
+        .nest("/comments", comment::get_router())
         .nest("/options", option::get_router())
-        // .nest("/posts", post::get_router())
         .layer(Extension(std::sync::Arc::new(state)))
     // .layer(axum::error_handling::HandleErrorLayer::new(handle_error))
 }

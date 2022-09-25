@@ -20,6 +20,7 @@ pub struct SimplePost {
     pub is_page: Option<bool>,
     pub status: Option<PostStatus>,
     pub extra: Option<serde_json::Value>,
+    pub comment_count: usize,
     pub is_authed: bool,
 }
 
@@ -37,6 +38,7 @@ impl From<post::Model> for SimplePost {
             is_page: model.is_page,
             status: model.status,
             extra: model.extra,
+            comment_count: model.comment_count,
             is_authed: false,
         }
     }
@@ -48,12 +50,13 @@ impl Serialize for SimplePost {
         S: serde::Serializer,
     {
         let mut state = serializer.serialize_struct("SimplePost", 12)?;
-        state.serialize_field("id", &self.id);
-        state.serialize_field("title", &self.title);
-        state.serialize_field("subtitle", &self.subtitle);
-        state.serialize_field("published", &self.published);
-        state.serialize_field("excerpts", &self.excerpts);
-        state.serialize_field("extra", &self.extra);
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("title", &self.title)?;
+        state.serialize_field("subtitle", &self.subtitle)?;
+        state.serialize_field("published", &self.published)?;
+        state.serialize_field("excerpts", &self.excerpts)?;
+        state.serialize_field("extra", &self.extra)?;
+        state.serialize_field("commentCount", &self.comment_count)?;
         if self.is_authed {
             state.serialize_field("created", &self.created)?;
             state.serialize_field("modified", &self.modified)?;
@@ -80,6 +83,7 @@ pub struct FulledPost {
     pub is_page: Option<bool>,
     pub status: Option<PostStatus>,
     pub extra: Option<serde_json::Value>,
+    pub comment_count: usize,
     pub is_authed: bool,
 }
 
@@ -98,6 +102,7 @@ impl From<post::Model> for FulledPost {
             is_page: model.is_page,
             status: model.status,
             extra: model.extra,
+            comment_count: model.comment_count,
             is_authed: false,
         }
     }
@@ -109,13 +114,14 @@ impl Serialize for FulledPost {
         S: serde::Serializer,
     {
         let mut state = serializer.serialize_struct("SimplePost", 12)?;
-        state.serialize_field("id", &self.id);
-        state.serialize_field("title", &self.title);
-        state.serialize_field("subtitle", &self.subtitle);
-        state.serialize_field("published", &self.published);
-        state.serialize_field("excerpts", &self.excerpts);
-        state.serialize_field("extra", &self.extra);
-        state.serialize_field("content", &self.content);
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("title", &self.title)?;
+        state.serialize_field("subtitle", &self.subtitle)?;
+        state.serialize_field("published", &self.published)?;
+        state.serialize_field("excerpts", &self.excerpts)?;
+        state.serialize_field("extra", &self.extra)?;
+        state.serialize_field("content", &self.content)?;
+        state.serialize_field("commentCount", &self.comment_count)?;
         if self.is_authed {
             state.serialize_field("created", &self.created)?;
             state.serialize_field("modified", &self.modified)?;

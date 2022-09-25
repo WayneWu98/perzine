@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
-use sea_orm::{entity::prelude::*, IntoActiveValue};
+use sea_orm::{entity::prelude::*, ConnectionTrait, IntoActiveValue};
 use serde::Deserialize;
 use serde_enum_str::{Deserialize_enum_str, Serialize_enum_str};
+
+use super::{comment, taxonomy};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Deserialize)]
 #[sea_orm(table_name = "posts")]
@@ -28,6 +30,9 @@ pub struct Model {
     pub status: Option<PostStatus>,
     #[sea_orm(nullable)]
     pub extra: Option<serde_json::Value>,
+    #[sea_orm(ignore)]
+    #[serde(skip)]
+    pub comment_count: usize,
 }
 
 #[derive(
@@ -80,3 +85,12 @@ impl Related<super::comment::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+impl Model {
+    pub async fn txs(&self, db: &impl ConnectionTrait) -> Result<Vec<taxonomy::Model>, DbErr> {
+        Ok(self.find_related(taxonomy::Entity).all(db).await?)
+    }
+    pub async fn comment_count(&self, db: &impl ConnectionTrait) -> Result<usize, DbErr> {
+        Ok(self.find_related(comment::Entity).count(db).await?)
+    }
+}

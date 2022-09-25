@@ -9,10 +9,10 @@ use handler::{
 
 pub fn get_router() -> Router {
     Router::new()
-        .route("/posts", get(get_posts).post(create_post))
+        .route("/", get(get_posts).post(create_post))
         .route(
-            "/posts/:id",
+            "/:id",
             get(get_post_by_id).put(update_post).delete(delete_post),
         )
-        .route("/posts/route/:route", get(get_post_by_route))
+        .route("/route/:route", get(get_post_by_route))
 }
