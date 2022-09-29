@@ -14,10 +14,10 @@
     "skipLibCheck": true,
     "baseUrl": "./",
     "paths": {
-      "@/*": ["src/"],
-      "service/*": ["@/service/*"],
-      "components/*": ["@/components/*"],
-      "views/*": ["@/views/*"]
+      "@/*": ["src/*"],
+      "service/*": ["src/service/*"],
+      "components/*": ["src/components/*"],
+      "views/*": ["src/views/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],
