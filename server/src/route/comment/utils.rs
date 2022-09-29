@@ -6,21 +6,22 @@ use crate::entity::comment;
 
 #[async_recursion]
 pub async fn list_children(
-    parent: i64,
+    parent: &comment::Model,
     db: &impl ConnectionTrait,
 ) -> Result<Vec<comment::Model>, Box<dyn std::error::Error>> {
     let wraps = comment::Entity::find()
         .filter(
             comment::Column::Parent
-                .eq(parent)
+                .eq(parent.id)
                 .and(comment::Column::Created.lte(Utc::now())),
         )
         .all(db)
         .await?;
     let mut formatted = Vec::new();
 
-    for child in wraps.into_iter() {
-        let children = list_children(child.id, db).await?;
+    for mut child in wraps.into_iter() {
+        let children = list_children(&child, db).await?;
+        child.formatted_parent = Some(Box::new(parent.clone()));
         formatted.push(child);
         formatted.extend(children.into_iter());
     }

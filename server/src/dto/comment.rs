@@ -9,10 +9,19 @@ pub struct Comment {
     pub nickname: String,
     pub email: String,
     pub site: Option<String>,
-    pub parent: Option<i64>,
+    pub parent: Option<Box<Comment>>,
     pub children: Vec<Comment>,
     pub role: UserRole,
     pub is_authed: bool,
+}
+
+impl Comment {
+    pub fn set_authed(&mut self, is_authed: bool) -> () {
+        self.is_authed = is_authed;
+        for child in self.children.iter_mut() {
+            child.set_authed(is_authed);
+        }
+    }
 }
 
 impl From<entity::comment::Model> for Comment {
@@ -20,6 +29,10 @@ impl From<entity::comment::Model> for Comment {
         let children = match item.children {
             Some(v) => v,
             None => vec![],
+        };
+        let parent = match item.formatted_parent {
+            Some(v) => Some(Box::new(Self::from(*v))),
+            None => None,
         };
         Self {
             id: item.id,
@@ -29,7 +42,7 @@ impl From<entity::comment::Model> for Comment {
             nickname: item.nickname.unwrap_or("".to_owned()),
             email: item.email.unwrap_or("".to_owned()),
             site: item.site,
-            parent: item.parent,
+            parent,
             role: item.role,
             children: children
                 .into_iter()
@@ -56,6 +69,7 @@ impl Serialize for Comment {
         state.serialize_field("role", &self.role)?;
         if self.is_authed {
             state.serialize_field("modified", &self.modified)?;
+            state.serialize_field("status", &self.status)?;
         }
         state.end()
     }

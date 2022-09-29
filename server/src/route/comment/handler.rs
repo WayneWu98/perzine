@@ -10,6 +10,7 @@ use sea_orm::{
     QueryOrder,
 };
 use serde::{Deserialize, Serialize};
+use serde_enum_str::Deserialize_enum_str;
 
 use crate::{
     core::{
@@ -28,20 +29,40 @@ use crate::{
 
 use super::utils::list_children;
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VisitorQuery {
-    pub post_id: i64,
+pub struct ListFilter {
+    pub post_id: Option<i64>,
+    pub format: Option<Format>,
+}
+#[derive(Debug, Clone, Copy, Deserialize_enum_str)]
+#[serde(rename_all = "camelCase")]
+pub enum Format {
+    List,
+    Tree,
+}
+
+impl Default for Format {
+    fn default() -> Self {
+        Self::Tree
+    }
 }
 
 pub async fn get_comments(
+    w_claims: WeekClaims,
     Extension(state): Extension<Arc<AppState>>,
     Pagination { page, per }: Pagination,
-    Query(VisitorQuery { post_id }): Query<VisitorQuery>,
+    Query(ListFilter { post_id, format }): Query<ListFilter>,
 ) -> HandlerResult<impl Serialize> {
-    let cond = sea_orm::Condition::all()
-        .add(comment::Column::PostId.eq(post_id))
-        .add(comment::Column::Status.eq(comment::CommentStatus::Published));
+    let mut cond = sea_orm::Condition::all();
+
+    if let Some(pid) = post_id {
+        cond = cond.add(comment::Column::PostId.eq(pid));
+    }
+
+    if !w_claims.is_authed() {
+        cond = cond.add(comment::Column::Status.eq(comment::CommentStatus::Published))
+    }
     let total = comment::Entity::find()
         .filter(cond.clone())
         .count(&state.db)
@@ -52,12 +73,29 @@ pub async fn get_comments(
         .paginate(&state.db, per);
 
     let parents = paginator.fetch_page(page).await?;
-    let mut items = Vec::new();
+    let mut items: Vec<dto::comment::Comment> = Vec::new();
 
     for mut parent in parents.into_iter() {
-        let children = list_children(parent.id, &state.db).await?;
-        parent.children = Some(children);
-        items.push(parent);
+        let children = list_children(&parent, &state.db).await?;
+
+        match format.unwrap_or_default() {
+            Format::List => {
+                let mut item: dto::comment::Comment = parent.into();
+                item.set_authed(w_claims.is_authed());
+                items.push(item);
+                for child in children.into_iter() {
+                    let mut item: dto::comment::Comment = child.into();
+                    item.set_authed(w_claims.is_authed());
+                    items.push(item);
+                }
+            }
+            Format::Tree => {
+                parent.children = Some(children);
+                let mut item: dto::comment::Comment = parent.into();
+                item.set_authed(w_claims.is_authed());
+                items.push(item);
+            }
+        }
     }
 
     res_ok!(PaginationData { total, items })

@@ -20,6 +20,9 @@ pub struct Model {
     pub site: Option<String>,
     pub content: Option<String>,
     pub parent: Option<i64>,
+    #[sea_orm(ignore)]
+    #[serde(skip_deserializing)]
+    pub formatted_parent: Option<Box<Model>>,
     pub post_id: Option<i64>,
     #[serde(skip_deserializing)]
     pub role: super::UserRole,
@@ -52,8 +55,6 @@ pub enum Relation {
         to = "super::post::Column::Id"
     )]
     Post,
-    #[sea_orm(belongs_to = "Entity", from = "Column::Parent", to = "Column::Id")]
-    Comment,
 }
 
 impl Related<super::post::Entity> for Entity {
