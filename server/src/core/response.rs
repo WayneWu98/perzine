@@ -16,12 +16,17 @@ where
 #[derive(Serialize)]
 pub struct PaginationData<T> {
     pub total: usize,
+    pub pages: usize,
     pub items: T,
 }
 
 impl<T> PaginationData<T> {
-    pub fn new(items: T, total: usize) -> Self {
-        Self { items, total }
+    pub fn new(items: T, total: usize, pages: usize) -> Self {
+        Self {
+            items,
+            total,
+            pages,
+        }
     }
 }
 
@@ -35,8 +40,8 @@ impl<T: Serialize> ResponseBody<T> {
 }
 
 impl<T: Serialize> ResponseBody<PaginationData<T>> {
-    pub fn with_pagination_data(data: T, total: usize) -> Self {
-        Self::ok(PaginationData::new(data, total))
+    pub fn with_pagination_data(data: T, total: usize, pages: usize) -> Self {
+        Self::ok(PaginationData::new(data, total, pages))
     }
 }
 

@@ -25,6 +25,7 @@ use crate::{
     },
     extract::{Claims, JsonPayload, Pagination, WeekClaims},
     res_ok,
+    utils::SqlOrder,
 };
 
 use super::utils::list_children;
@@ -34,6 +35,7 @@ use super::utils::list_children;
 pub struct ListFilter {
     pub post_id: Option<i64>,
     pub format: Option<Format>,
+    pub order: Option<SqlOrder>,
 }
 #[derive(Debug, Clone, Copy, Deserialize_enum_str)]
 #[serde(rename_all = "camelCase")]
@@ -52,7 +54,11 @@ pub async fn get_comments(
     w_claims: WeekClaims,
     Extension(state): Extension<Arc<AppState>>,
     Pagination { page, per }: Pagination,
-    Query(ListFilter { post_id, format }): Query<ListFilter>,
+    Query(ListFilter {
+        post_id,
+        format,
+        order,
+    }): Query<ListFilter>,
 ) -> HandlerResult<impl Serialize> {
     let mut cond = sea_orm::Condition::all();
 
@@ -61,35 +67,37 @@ pub async fn get_comments(
     }
 
     if !w_claims.is_authed() {
-        cond = cond.add(comment::Column::Status.eq(comment::CommentStatus::Published))
+        cond = cond
+            .add(comment::Column::Status.eq(comment::CommentStatus::Published))
+            .add(comment::Column::Created.lte(Utc::now()))
     }
     let total = comment::Entity::find()
         .filter(cond.clone())
         .count(&state.db)
         .await?;
+    let pcond = match format.unwrap_or_default() {
+        Format::List => cond.clone(),
+        Format::Tree => cond.clone().add(comment::Column::Parent.is_null()),
+    };
+    let ord = order.unwrap_or(SqlOrder::Desc).order();
     let paginator = comment::Entity::find()
-        .filter(cond.add(comment::Column::Parent.is_null()))
-        .order_by_desc(comment::Column::Created)
+        .filter(pcond)
+        .order_by(comment::Column::Created, ord.clone())
         .paginate(&state.db, per);
 
     let parents = paginator.fetch_page(page).await?;
+    let pages = paginator.num_pages().await?;
     let mut items: Vec<dto::comment::Comment> = Vec::new();
 
     for mut parent in parents.into_iter() {
-        let children = list_children(&parent, &state.db).await?;
-
         match format.unwrap_or_default() {
             Format::List => {
                 let mut item: dto::comment::Comment = parent.into();
                 item.set_authed(w_claims.is_authed());
                 items.push(item);
-                for child in children.into_iter() {
-                    let mut item: dto::comment::Comment = child.into();
-                    item.set_authed(w_claims.is_authed());
-                    items.push(item);
-                }
             }
             Format::Tree => {
+                let children = list_children(&parent, &state.db, ord.clone()).await?;
                 parent.children = Some(children);
                 let mut item: dto::comment::Comment = parent.into();
                 item.set_authed(w_claims.is_authed());
@@ -98,7 +106,7 @@ pub async fn get_comments(
         }
     }
 
-    res_ok!(PaginationData { total, items })
+    res_ok!(PaginationData::new(items, total, pages))
 }
 
 #[derive(Deserialize)]

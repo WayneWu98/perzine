@@ -28,8 +28,9 @@ pub async fn get_taxonomies(
         .paginate(&state.db, per);
 
     let total = paginator.num_items().await?;
+    let pages = paginator.num_pages().await?;
     let items = paginator.fetch_page(page).await?;
-    res_ok!(PaginationData::new(items, total))
+    res_ok!(PaginationData::new(items, total, pages))
 }
 
 pub async fn get_taxonomy(

@@ -35,6 +35,7 @@ pub async fn get_posts(
         .paginate(&state.db, per);
 
     let total = paginator.num_items().await?;
+    let pages = paginator.num_pages().await?;
     let items = paginator.fetch_page(page).await?;
     let mut formatted = Vec::with_capacity(items.len());
     for mut item in items.into_iter() {
@@ -45,7 +46,7 @@ pub async fn get_posts(
         formatted.push(PostWithTaxonomy::from_unclassified(item, txs));
     }
 
-    res_ok!(PaginationData::new(formatted, total))
+    res_ok!(PaginationData::new(formatted, total, pages))
 }
 
 pub async fn get_post_by_id(
