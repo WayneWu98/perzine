@@ -1,4 +1,4 @@
-import { getPreferThemeMode, ThemeMode, setPreferTheme } from '@/theme';
+import { getPreferThemeMode, ThemeMode, setPreferThemeMode } from '@/theme';
 import { inject, InjectionKey, onMounted, provide, watch } from 'vue';
 
 const KEY = Symbol() as InjectionKey<{
@@ -9,7 +9,8 @@ const KEY = Symbol() as InjectionKey<{
 
 export const privideThemeMode = () => {
   let themeMode = $ref<ThemeMode>(getPreferThemeMode());
-  const setThemeMode = (mode: ThemeMode) => (themeMode = setPreferTheme(mode));
+  const setThemeMode = (mode: ThemeMode) =>
+    (themeMode = setPreferThemeMode(mode));
   const toggleThemeMode = () => {
     switch (themeMode) {
       case ThemeMode.Auto:
@@ -44,4 +45,5 @@ export const privideThemeMode = () => {
 
 export default () => {
   const themeMode = inject(KEY);
+  return themeMode;
 };

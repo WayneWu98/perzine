@@ -4,7 +4,7 @@ export enum ThemeMode {
   Auto = 'auto',
 }
 
-export const setPreferTheme = (mode: ThemeMode) => {
+export const setPreferThemeMode = (mode: ThemeMode) => {
   localStorage.setItem('theme', mode);
   return mode;
 };
