@@ -17,6 +17,7 @@
     "paths": {
       "@/*": ["src/*"],
       "service/*": ["src/service/*"],
+      "hooks/*": ["src/hooks/*"],
       "components/*": ["src/components/*"],
       "views/*": ["src/views/*"]
     }
