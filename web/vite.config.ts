@@ -23,7 +23,9 @@ export default defineConfig({
     },
   },
   plugins: [
-    vue(),
+    vue({
+      reactivityTransform: true,
+    }),
     legacy({
       targets: ['defaults', 'not IE 11'],
     }),
