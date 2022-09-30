@@ -1,5 +1,3 @@
-import colors from 'windicss/colors';
-
 export default {
   attributify: {
     prefix: 'w:',
